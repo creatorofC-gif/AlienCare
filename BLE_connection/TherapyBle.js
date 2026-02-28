@@ -17,11 +17,20 @@ const TIMER_UUID = "a0000005-0000-0000-0000-000000000005";
 // --------------------
 export async function requestBluetoothPermission() {
   if (Platform.OS === 'android') {
-    await PermissionsAndroid.requestMultiple([
-      PermissionsAndroid.PERMISSIONS.BLUETOOTH_SCAN,
-      PermissionsAndroid.PERMISSIONS.BLUETOOTH_CONNECT,
-      PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION,
-    ]);
+    if (Platform.Version >= 31) {
+      // Android 12+
+      await PermissionsAndroid.requestMultiple([
+        PermissionsAndroid.PERMISSIONS.BLUETOOTH_SCAN,
+        PermissionsAndroid.PERMISSIONS.BLUETOOTH_CONNECT,
+        PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION,
+      ]);
+    } else {
+      // Android 11 and lower
+      await PermissionsAndroid.requestMultiple([
+        PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION,
+        PermissionsAndroid.PERMISSIONS.ACCESS_COARSE_LOCATION,
+      ]);
+    }
   }
 }
 
@@ -29,23 +38,46 @@ export async function requestBluetoothPermission() {
 // SCAN + CONNECT
 // --------------------
 export function connectToTherapyBand(onConnected) {
+  let isFinished = false;
+
+  const timeoutId = setTimeout(() => {
+    if (!isFinished) {
+      isFinished = true;
+      manager.stopDeviceScan();
+      console.log("Device Scan Timeout");
+      onConnected(false);
+    }
+  }, 10000); // 10 seconds timeout
+
   manager.startDeviceScan(null, null, async (error, device) => {
     if (error) {
       console.log("Scan Error:", error);
+      if (!isFinished) {
+        isFinished = true;
+        clearTimeout(timeoutId);
+        onConnected(false);
+      }
       return;
     }
 
-    // 👇 Change name if needed
-    if (device.name === "TherapyBand") {
-      manager.stopDeviceScan();
+    if (!device) return;
 
-      try {
-        deviceConnected = await device.connect();
-        await deviceConnected.discoverAllServicesAndCharacteristics();
-        console.log("Connected Successfully");
-        onConnected(true);
-      } catch (err) {
-        console.log("Connection Failed:", err);
+    // 👇 Check both name and localName
+    if (device.name === "TherapyBand" || device.localName === "TherapyBand") {
+      if (!isFinished) {
+        isFinished = true;
+        clearTimeout(timeoutId);
+        manager.stopDeviceScan();
+
+        try {
+          deviceConnected = await device.connect();
+          await deviceConnected.discoverAllServicesAndCharacteristics();
+          console.log("Connected Successfully");
+          onConnected(true);
+        } catch (err) {
+          console.log("Connection Failed:", err);
+          onConnected(false);
+        }
       }
     }
   });
@@ -79,8 +111,8 @@ async function sendCommand(characteristicUuid, commandStr) {
 // HOT MODE
 // --------------------
 export async function startHot(temp, time) {
-  if (temp < 26) temp = 26;
-  if (temp > 45) temp = 45;
+  if (temp < 25) temp = 25;
+  if (temp > 55) temp = 55;
 
   await sendCommand(MODE_UUID, "HEAT");
   await sendCommand(SET_UUID, String(temp));

@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Animated, Easing, Alert } from 'react-native';
-import { ChevronLeft } from 'lucide-react-native';
+import { ChevronLeft, Bluetooth, Smartphone, BatteryMedium, CheckCircle2 } from 'lucide-react-native';
 import GradientBackground from '../components/GradientBackground';
 import { COLORS, SPACING } from '../constants/theme';
 import { requestBluetoothPermission, connectToTherapyBand } from '../../BLE_connection/TherapyBle';
@@ -20,21 +20,25 @@ const BluetoothScreen = ({ navigation, route }) => {
             title: 'Step 1',
             description: 'Connect to Bluetooth to start pairing.',
             actionLabel: isConnecting ? 'Connecting...' : (isBluetoothConnected ? 'Bluetooth Connected' : 'Connect Bluetooth'),
+            icon: Bluetooth,
         },
         {
             title: 'Step 2',
             description: 'Keep your smart band near your phone.',
             actionLabel: isNearConfirmed ? 'Band is Nearby' : 'Band is Nearby',
+            icon: Smartphone,
         },
         {
             title: 'Step 3',
             description: 'Confirm the band is charged and powered ON.',
             actionLabel: isPowerConfirmed ? 'Band is Powered ON' : 'Band is Powered ON',
+            icon: BatteryMedium,
         },
         {
             title: 'Step 4',
             description: 'Complete pairing and continue to dashboard.',
             actionLabel: isPairingComplete ? 'Pairing Complete' : 'Finish Pairing',
+            icon: CheckCircle2,
         },
     ];
 
@@ -187,7 +191,7 @@ const BluetoothScreen = ({ navigation, route }) => {
                         ]}
                     >
                         <View style={styles.beaconOuter}>
-                            <View style={styles.beaconInner} />
+                            <Bluetooth color={isBluetoothConnected ? "#26C6DA" : "#fff"} size={36} />
                         </View>
                     </Animated.View>
 
@@ -236,7 +240,9 @@ const BluetoothScreen = ({ navigation, route }) => {
                     >
                         <View style={styles.stepHeader}>
                             <View style={styles.stepBadge}>
-                                <Text style={styles.stepBadgeText}>{currentStep + 1}</Text>
+                                {activeStep.icon && (
+                                    <activeStep.icon color="#fff" size={20} />
+                                )}
                             </View>
                             <Text style={styles.stepTitle}>{activeStep.title}</Text>
                         </View>
@@ -245,6 +251,10 @@ const BluetoothScreen = ({ navigation, route }) => {
                             style={[
                                 styles.stepActionButton,
                                 (currentStep === 0 && isConnecting) && styles.stepActionButtonDisabled,
+                                ((currentStep === 0 && isBluetoothConnected) ||
+                                    (currentStep === 1 && isNearConfirmed) ||
+                                    (currentStep === 2 && isPowerConfirmed) ||
+                                    (currentStep === 3 && isPairingComplete)) && styles.stepActionButtonDone,
                             ]}
                             onPress={handleStepAction}
                             disabled={currentStep === 0 && isConnecting}
@@ -363,10 +373,10 @@ const styles = StyleSheet.create({
         marginBottom: 8,
     },
     stepBadge: {
-        width: 28,
-        height: 28,
-        borderRadius: 14,
-        backgroundColor: 'rgba(255,255,255,0.2)',
+        width: 44,
+        height: 44,
+        borderRadius: 22,
+        backgroundColor: 'rgba(255,255,255,0.15)',
         justifyContent: 'center',
         alignItems: 'center',
         marginRight: 10,
@@ -397,6 +407,9 @@ const styles = StyleSheet.create({
     },
     stepActionButtonDisabled: {
         opacity: 0.7,
+    },
+    stepActionButtonDone: {
+        backgroundColor: 'rgba(38, 198, 218, 0.4)',
     },
     stepActionButtonText: {
         color: '#fff',

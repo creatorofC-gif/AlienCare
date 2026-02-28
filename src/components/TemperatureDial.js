@@ -10,7 +10,7 @@ const RADIUS = (DIAL_SIZE - STROKE_WIDTH) / 2;
 const CENTER = DIAL_SIZE / 2;
 const INNER_RADIUS = RADIUS - STROKE_WIDTH / 2 - 10;
 
-const TemperatureDial = ({ value, min, max, onChange, mode = 'Off' }) => {
+const TemperatureDial = ({ value, min, max, onChange, mode = 'Off', timerValue, isTimerRunning }) => {
     // Animation values
     const animatedAngle = useRef(new Animated.Value(0)).current;
     const scaleAnim = useRef(new Animated.Value(1)).current;
@@ -22,10 +22,10 @@ const TemperatureDial = ({ value, min, max, onChange, mode = 'Off' }) => {
             animatedAngle.setValue(0);
             return;
         }
-        
+
         const clampedValue = Math.min(Math.max(value, min), max);
         const targetAngle = ((clampedValue - min) / range) * 360;
-        
+
         // Smooth animation to new angle
         Animated.spring(animatedAngle, {
             toValue: targetAngle,
@@ -68,11 +68,11 @@ const TemperatureDial = ({ value, min, max, onChange, mode = 'Off' }) => {
             },
             onPanResponderMove: (e) => {
                 if (mode === 'Off' || range <= 0) return;
-                
+
                 const { locationX, locationY } = e.nativeEvent;
                 const adjustedX = locationX - (width - DIAL_SIZE) / 2;
                 const adjustedY = locationY - 20;
-                
+
                 let angle = cartesianToPolar(adjustedX, adjustedY);
                 if (angle < 0) angle = 0;
                 if (angle > 360) angle = 360;
@@ -80,7 +80,7 @@ const TemperatureDial = ({ value, min, max, onChange, mode = 'Off' }) => {
                 let newValue = Math.round(min + (angle / 360) * range);
                 if (newValue < min) newValue = min;
                 if (newValue > max) newValue = max;
-                
+
                 if (onChange) {
                     onChange(newValue);
                 }
@@ -97,19 +97,19 @@ const TemperatureDial = ({ value, min, max, onChange, mode = 'Off' }) => {
     // Clean color scheme
     const isHot = mode === 'Hot';
     const isCold = mode === 'Cold';
-    
+
     const hotColors = {
         primary: '#FF6B35',
         secondary: '#FF8C42',
         track: 'rgba(255, 107, 53, 0.2)',
     };
-    
+
     const coldColors = {
         primary: '#00B4D8',
         secondary: '#0096C7',
         track: 'rgba(0, 180, 216, 0.2)',
     };
-    
+
     const offColors = {
         primary: '#6C757D',
         secondary: '#495057',
@@ -120,7 +120,7 @@ const TemperatureDial = ({ value, min, max, onChange, mode = 'Off' }) => {
 
     return (
         <View style={styles.container}>
-            <Animated.View 
+            <Animated.View
                 style={[
                     styles.shadowContainer,
                     {
@@ -223,11 +223,11 @@ const TemperatureDial = ({ value, min, max, onChange, mode = 'Off' }) => {
                             r={INNER_RADIUS - 15}
                             fill="rgba(0,0,0,0.25)"
                         />
-                        
+
                         {/* Temperature Value */}
                         <SvgText
                             x={CENTER}
-                            y={CENTER - 8}
+                            y={isTimerRunning ? CENTER - 10 : CENTER + 10}
                             fontSize="56"
                             fontWeight="300"
                             fill="#FFFFFF"
@@ -237,32 +237,19 @@ const TemperatureDial = ({ value, min, max, onChange, mode = 'Off' }) => {
                             {mode === 'Off' ? 'OFF' : `${Math.round(clampedValue)}°`}
                         </SvgText>
 
-                        {/* Mode Label */}
-                        <SvgText
-                            x={CENTER}
-                            y={CENTER + 28}
-                            fontSize="14"
-                            fontWeight="600"
-                            fill={colors.primary}
-                            textAnchor="middle"
-                            alignmentBaseline="middle"
-                            letterSpacing="2"
-                        >
-                            {mode.toUpperCase()}
-                        </SvgText>
-
-                        {/* Range indicator */}
-                        {mode !== 'Off' && (
+                        {/* Timer Display Inside Dial */}
+                        {isTimerRunning && (
                             <SvgText
                                 x={CENTER}
-                                y={CENTER + 48}
-                                fontSize="11"
-                                fontWeight="400"
-                                fill="rgba(255,255,255,0.5)"
+                                y={CENTER + 35}
+                                fontSize="22"
+                                fontWeight="600"
+                                fill={colors.primary}
                                 textAnchor="middle"
                                 alignmentBaseline="middle"
+                                letterSpacing="1"
                             >
-                                {min}° - {max}°
+                                {timerValue}
                             </SvgText>
                         )}
                     </G>

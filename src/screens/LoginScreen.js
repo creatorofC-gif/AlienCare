@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useState } from 'react';
 import {
     View,
     Text,
@@ -6,98 +6,140 @@ import {
     KeyboardAvoidingView,
     Platform,
     Pressable,
+    TextInput,
     Alert,
+    ScrollView,
+    Image,
 } from 'react-native';
-import { auth } from '../firebase/firebaseConfig';
-import { GoogleAuthProvider, signInWithCredential } from 'firebase/auth';
-import * as WebBrowser from 'expo-web-browser';
-import * as Google from 'expo-auth-session/providers/google';
-import { makeRedirectUri } from 'expo-auth-session';
 import GradientBackground from '../components/GradientBackground';
 import { COLORS, FONTS, SPACING } from '../constants/theme';
 
-// Ensure the auth session closes correctly
-WebBrowser.maybeCompleteAuthSession();
-
 const LoginScreen = ({ navigation }) => {
+    const [phoneNumber, setPhoneNumber] = useState('');
+    const [otp, setOtp] = useState('');
+    const [otpSent, setOtpSent] = useState(false);
 
-    const WEB_CLIENT_ID = '575262954263-cdcb8s4vissnno1q7rjaij9usqkhpkfc.apps.googleusercontent.com';
-    const ANDROID_CLIENT_ID = '575262954263-4rubnaebvqa16vjop68jtpqol7t2p32q.apps.googleusercontent.com';
-
-    const [request, response, promptAsync] = Google.useIdTokenAuthRequest({
-        webClientId: WEB_CLIENT_ID,
-        androidClientId: ANDROID_CLIENT_ID,
-        // Using an empty makeRedirectUri() directs it back to localhost or the native app scheme
-        // without routing through Google's banned proxy flow.
-        redirectUri: makeRedirectUri(),
-    });
-
-    const handleGoogleLogin = () => {
-        if (WEB_CLIENT_ID.includes('PASTE_YOUR') || ANDROID_CLIENT_ID.includes('PASTE_YOUR')) {
-            Alert.alert(
-                'Missing Client IDs',
-                'You still need to paste your WEB Client ID! Firebase requires it even for Android.'
-            );
+    const handleSendOTP = () => {
+        if (phoneNumber.length < 10) {
+            Alert.alert('Invalid Number', 'Please enter a valid 10-digit mobile number.');
             return;
         }
-        promptAsync();
+        // Mock sending OTP
+        setOtpSent(true);
+        Alert.alert('OTP Sent', 'A dummy OTP has been sent. Any code works!');
     };
 
-    useEffect(() => {
-        if (response?.type === 'success') {
-            const { id_token } = response.params;
-            const credential = GoogleAuthProvider.credential(id_token);
-
-            signInWithCredential(auth, credential)
-                .then((userCredential) => {
-                    console.log('Google Auth Success:', userCredential.user.email);
-                    navigation.navigate('Bluetooth', {
-                        email: userCredential.user.email,
-                        username: userCredential.user.displayName || 'Google User'
-                    });
-                })
-                .catch((error) => {
-                    console.error('Firebase Auth Error:', error);
-                    Alert.alert('Google Auth Failed', error.message);
-                });
+    const handleVerifyOTP = () => {
+        if (otp.length < 4) {
+            Alert.alert('Invalid OTP', 'Please enter the code you received.');
+            return;
         }
-    }, [response]);
+
+        // Mock verification success
+        console.log('Dummy OTP Verified Success');
+        navigation.navigate('Bluetooth', {
+            email: `${phoneNumber}@dummy.com`,
+            username: 'OTP User'
+        });
+    };
 
     return (
         <GradientBackground>
             <KeyboardAvoidingView
-                behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-                style={styles.container}
+                behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+                style={styles.keyboardAvoid}
             >
-                <View style={styles.header}>
-                    <Text style={styles.title}>Sign Up</Text>
-                    <Text style={styles.subtitle}>Create a new account</Text>
-                </View>
+                <ScrollView
+                    contentContainerStyle={styles.scrollContainer}
+                    keyboardShouldPersistTaps="handled"
+                    showsVerticalScrollIndicator={false}
+                >
+                    <View style={styles.header}>
+                        <Image
+                            source={require('../../assets/icon.jpeg')}
+                            style={styles.logo}
+                            resizeMode="contain"
+                        />
+                        <Text style={styles.title}>Alien HealthCare</Text>
+                        <Text style={styles.subtitle}>Sign in with your mobile number</Text>
+                    </View>
 
-                <View style={styles.form}>
-                    <Pressable
-                        style={[styles.googleButton, !request && styles.googleButtonDisabled]}
-                        onPress={handleGoogleLogin}
-                        disabled={!request}
-                        android_ripple={{ color: 'rgba(255,255,255,0.3)' }}
-                    >
-                        <Text style={styles.googleButtonText}>Continue with Google</Text>
-                    </Pressable>
-                </View>
+                    <View style={styles.form}>
+                        {!otpSent ? (
+                            <>
+                                <TextInput
+                                    style={styles.input}
+                                    placeholder="Enter Mobile Number"
+                                    placeholderTextColor="rgba(255,255,255,0.6)"
+                                    keyboardType="phone-pad"
+                                    value={phoneNumber}
+                                    onChangeText={setPhoneNumber}
+                                    maxLength={10}
+                                />
+                                <Pressable
+                                    style={styles.actionButton}
+                                    onPress={handleSendOTP}
+                                    android_ripple={{ color: 'rgba(255,255,255,0.3)' }}
+                                >
+                                    <Text style={styles.actionButtonText}>Send OTP</Text>
+                                </Pressable>
+                            </>
+                        ) : (
+                            <>
+                                <TextInput
+                                    style={styles.input}
+                                    placeholder="Enter Fake OTP (any digits)"
+                                    placeholderTextColor="rgba(255,255,255,0.6)"
+                                    keyboardType="number-pad"
+                                    value={otp}
+                                    onChangeText={setOtp}
+                                    maxLength={6}
+                                />
+                                <Pressable
+                                    style={styles.actionButton}
+                                    onPress={handleVerifyOTP}
+                                    android_ripple={{ color: 'rgba(255,255,255,0.3)' }}
+                                >
+                                    <Text style={styles.actionButtonText}>Verify & Login</Text>
+                                </Pressable>
+
+                                <Pressable
+                                    style={{ marginTop: 15, alignItems: 'center', padding: 10 }}
+                                    onPress={() => {
+                                        setOtpSent(false);
+                                        setOtp('');
+                                    }}
+                                >
+                                    <Text style={{ color: 'rgba(255,255,255,0.8)', fontSize: 16 }}>Change Number</Text>
+                                </Pressable>
+                            </>
+                        )}
+                    </View>
+                </ScrollView>
             </KeyboardAvoidingView>
         </GradientBackground>
     );
 };
 
 const styles = StyleSheet.create({
-    container: {
+    keyboardAvoid: {
         flex: 1,
+    },
+    scrollContainer: {
+        flexGrow: 1,
         padding: SPACING.lg,
         justifyContent: 'center',
     },
     header: {
         alignItems: 'center',
         marginBottom: 50,
+    },
+    logo: {
+        width: 120,
+        height: 120,
+        borderRadius: 24,
+        marginBottom: 20,
+        backgroundColor: '#fff',
     },
     title: {
         fontSize: 40,
@@ -112,13 +154,20 @@ const styles = StyleSheet.create({
     form: {
         width: '100%',
     },
-    googleButtonDisabled: {
-        opacity: 0.6,
+    input: {
+        backgroundColor: 'rgba(255,255,255,0.15)',
+        borderWidth: 1,
+        borderColor: 'rgba(255,255,255,0.3)',
+        color: '#fff',
+        borderRadius: 12,
+        padding: 16,
+        fontSize: 16,
+        marginBottom: 20,
     },
-    googleButton: {
+    actionButton: {
         backgroundColor: '#fff',
         height: 55,
-        borderRadius: 27.5,
+        borderRadius: 12,
         justifyContent: 'center',
         alignItems: 'center',
         flexDirection: 'row',
@@ -128,7 +177,7 @@ const styles = StyleSheet.create({
         shadowRadius: 5,
         elevation: 8,
     },
-    googleButtonText: {
+    actionButtonText: {
         color: '#333',
         fontSize: 16,
         fontWeight: 'bold',
