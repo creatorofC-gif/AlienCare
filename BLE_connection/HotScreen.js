@@ -6,7 +6,7 @@ import {
   startHot,
   startCool,
   stopTherapy
-} from '../bluetooth/TherapyBle';
+} from './TherapyBle';
 
 export default function HotScreen() {
   const [connected, setConnected] = useState(false);

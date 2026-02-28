@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { View, Text, Modal, Button, TextInput } from 'react-native';
-import { startHot, startCool, stopTherapy } from '../bluetooth/TherapyBle';
+import { startHot, startCool, stopTherapy } from './TherapyBle';
 
 export default function CustomSettingsModal({ visible, onClose }) {
 
