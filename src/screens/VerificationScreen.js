@@ -10,6 +10,7 @@ import {
 } from 'react-native';
 import { ChevronLeft } from 'lucide-react-native';
 import GradientBackground from '../components/GradientBackground';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { COLORS, FONTS, SPACING } from '../constants/theme';
 
 const VerificationScreen = ({ navigation, route }) => {

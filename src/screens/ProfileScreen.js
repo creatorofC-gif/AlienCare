@@ -3,18 +3,17 @@ import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { ChevronLeft, User as UserIcon, Smartphone, LogOut } from 'lucide-react-native';
 import { CommonActions } from '@react-navigation/native';
 import GradientBackground from '../components/GradientBackground';
-import { auth } from '../firebase/firebaseConfig';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { COLORS, SPACING } from '../constants/theme';
 
 const ProfileScreen = ({ navigation, route }) => {
-    const username = route?.params?.username || auth?.currentUser?.displayName || 'User';
+    const username = route?.params?.username || 'User';
     const deviceName = route?.params?.deviceName || 'Smart Band';
 
     const handleLogout = async () => {
         try {
-            if (auth && typeof auth.signOut === 'function') {
-                await auth.signOut();
-            }
+            await AsyncStorage.removeItem('isLoggedIn');
+            await AsyncStorage.removeItem('username');
         } catch (error) {
             console.log('Logout fallback:', error?.message || error);
         }

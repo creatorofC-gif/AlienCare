@@ -18,11 +18,11 @@ import {
 } from 'react-native';
 import { Thermometer, Wind, Power, Clock, Plus, Settings, Home, User as UserIcon, X, ChevronLeft } from 'lucide-react-native';
 import { useFocusEffect } from '@react-navigation/native';
-import { auth, database, isDemo } from '../firebase/firebaseConfig';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import GradientBackground from '../components/GradientBackground';
 import TemperatureDial from '../components/TemperatureDial';
 import WheelTimer from '../components/WheelTimer';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { COLORS, SPACING } from '../constants/theme';
 import { sendCommandToDevice } from '../hooks/useBluetooth';
 import { 
@@ -57,8 +57,7 @@ const DashboardScreen = ({ navigation, route }) => {
     const [isScanning, setIsScanning] = useState(false);
     const [scanModalVisible, setScanModalVisible] = useState(false);
 
-    const user = auth.currentUser;
-    const username = route?.params?.username || user?.displayName || 'User';
+    const username = route?.params?.username || 'User';
     const deviceName = route?.params?.deviceName || 'Smart Band';
 
     // Android Back Button Handling
