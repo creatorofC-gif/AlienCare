@@ -1,0 +1,19 @@
+Inside ESP32:
+
+std::string value = pCharacteristic->getValue();
+
+if (value.length() > 0) {
+
+  String received = String(value.c_str());
+
+  int firstComma = received.indexOf(',');
+  int secondComma = received.indexOf(',', firstComma + 1);
+
+  String mode = received.substring(0, firstComma);
+  int temp = received.substring(firstComma + 1, secondComma).toInt();
+  int time = received.substring(secondComma + 1).toInt();
+
+  Serial.println(mode);
+  Serial.println(temp);
+  Serial.println(time);
+}

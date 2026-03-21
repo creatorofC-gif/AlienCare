@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+
+<html class="h-full" lang="en"><head>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Heat Control Module - Cold Mode</title>
+<!-- Load Tailwind CSS v3 -->
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<!-- Load Manrope Font -->
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&amp;display=swap" rel="stylesheet"/>
+<script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['Manrope', 'sans-serif'],
+          },
+          colors: {
+            brand: {
+              DEFAULT: '#2563eb', // Clean Professional Blue (blue-600)
+              dark: '#1e3a8a',
+              light: '#60a5fa',
+              blue: '#3b82f6', // Cold blue accent
+            },
+            darkBg: '#020617', // Deeper, crisp slate-black background
+          },
+          borderRadius: {
+            'custom': '8px',
+          }
+        }
+      }
+    }
+  </script>
+<style data-purpose="custom-layout">
+    body {
+      background-color: #020617;
+      background-image: radial-gradient(circle at center, #0a192f 0%, #020617 100%);
+      color: #ffffff;
+      -webkit-tap-highlight-color: transparent;
+    }
+    
+    /* Visual styling for the temperature dial ring with blue gradient */
+    .dial-ring {
+      background: conic-gradient(from 180deg, #3b82f6 0%, #1e40af 70%, #0f172a 70%, #0f172a 100%);
+      mask: radial-gradient(transparent 65%, black 66%);
+      -webkit-mask: radial-gradient(transparent 65%, black 66%);
+    }
+
+    /* Soft glow for the active temperature indicator - clinical blue */
+    .glow-effect {
+      box-shadow: 0 0 20px rgba(59, 130, 246, 0.6);
+    }
+    
+    .snowflake-glow {
+      filter: drop-shadow(0 0 12px rgba(59, 130, 246, 0.4));
+    }
+
+    /* Subtle ambient blue glow for the background depth */
+    .ambient-glow {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      width: 100%;
+      height: 100%;
+      background: radial-gradient(circle, rgba(37, 99, 235, 0.05) 0%, transparent 70%);
+      pointer-events: none;
+      z-index: -1;
+    }
+  </style>
+</head>
+<body class="h-full font-sans antialiased overflow-hidden select-none relative">
+<div class="ambient-glow"></div>
+<!-- BEGIN: Main Container -->
+<main class="flex flex-col h-screen max-w-md mx-auto p-6 justify-between items-center" data-purpose="app-container">
+<!-- BEGIN: Header -->
+<header class="w-full flex justify-between items-center" data-purpose="top-navigation">
+<div class="flex flex-col">
+<button class="p-1.5 rounded-full bg-white/5 hover:bg-white/10 transition-colors w-fit mb-1">
+<svg class="h-5 w-5" fill="none" stroke="currentColor" viewbox="0 0 24 24">
+<path d="M15 19l-7-7 7-7" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"></path>
+</svg>
+</button>
+<span class="text-xs font-medium text-white/40 mt-1">
+<h2 class="text-white text-xl font-bold tracking-tight" data-stitch-added-classes="cursor-text" spellcheck="false" style="outline: none !important;">Hello, Username</h2>
+</span>
+</div>
+<div class="flex items-center gap-3">
+<button class="px-4 py-1.5 bg-red-500/10 text-red-400 text-xs font-bold rounded-full border border-red-500/20 uppercase tracking-widest">Off</button>
+<button class="p-2 text-white/60 hover:text-white">
+<span class="material-symbols-outlined text-2xl">settings</span>
+</button>
+</div>
+</header>
+<div class="w-full flex justify-center mt-2" data-purpose="mode-toggle">
+<div class="flex bg-white/5 p-1 rounded-full border border-white/10 w-44">
+<button class="flex-1 py-2 text-[10px] font-bold uppercase tracking-wider rounded-full text-white/40 hover:text-white/60 transition-colors">Hot</button>
+<button class="flex-1 py-2 text-[10px] font-bold uppercase tracking-wider rounded-full bg-brand text-white shadow-sm shadow-brand/20">Cold</button>
+</div>
+</div>
+<!-- END: Header -->
+<!-- BEGIN: Temperature Dial -->
+<section class="relative flex flex-col items-center justify-center w-full py-6" data-purpose="temperature-display-section">
+<!-- Outer Dial Circle -->
+<div class="relative w-72 h-72 rounded-full flex items-center justify-center border-4 border-white/5 shadow-2xl shadow-blue-900/10">
+<!-- Progress Ring (Stylized Conic Gradient) -->
+<div class="absolute inset-2 rounded-full dial-ring opacity-90"></div>
+<!-- Rotating Indicator Pin (Large dot-shaped knob) -->
+<div class="absolute inset-0 flex items-start justify-center rotate-[120deg]" style="transform: rotate(120deg);">
+<div class="w-4 h-4 bg-brand-blue rounded-full glow-effect -translate-y-2 border-2 border-white/20"></div>
+</div>
+<!-- Central Temperature Display -->
+<div class="flex flex-col items-center z-10 text-center">
+<!-- Large Snowflake Icon -->
+<svg class="w-32 h-32 text-brand-blue snowflake-glow" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.25" viewbox="0 0 24 24">
+<line x1="12" x2="12" y1="2" y2="22"></line>
+<line x1="20" x2="4" y1="12" y2="12"></line>
+<line x1="4.93" x2="19.07" y1="4.93" y2="19.07"></line>
+<line x1="4.93" x2="19.07" y1="19.07" y2="4.93"></line>
+<path d="M12 8l3-3 3 3"></path>
+<path d="M16 12l3 3-3 3"></path>
+<path d="M12 16l-3 3-3-3"></path>
+<path d="M8 12l-3-3-3 3"></path>
+</svg>
+</div>
+</div>
+</section>
+<!-- END: Temperature Dial -->
+<!-- BEGIN: Timer and Presets -->
+<section class="w-full pb-8" data-purpose="controls-bottom">
+<div class="flex rounded-2xl w-full mb-4" data-purpose="control-mode-selector">
+<button class="w-full py-5 text-[12px] font-bold uppercase tracking-[0.2em] rounded-xl bg-brand text-white shadow-lg shadow-brand/30 transition-all hover:bg-brand-light active:scale-[0.98]">Custom Preset</button>
+</div>
+</section>
+<!-- END: Timer and Presets -->
+<!-- BEGIN: Bottom Interaction Bar -->
+<footer class="w-full pb-2" data-purpose="bottom-bar">
+<div class="h-1.5 w-32 bg-white/20 rounded-full mx-auto"></div>
+</footer>
+<!-- END: Bottom Interaction Bar -->
+</main>
+<!-- END: Main Container -->
+<!-- JavaScript for minor interactivity simulations -->
+<script data-purpose="ui-logic">
+    console.log("Heat Control UI - Deep Blue Theme Updated");
+  </script>
+</body></html>

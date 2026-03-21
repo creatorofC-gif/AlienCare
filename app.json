@@ -1,0 +1,44 @@
+{
+  "expo": {
+    "name": "Alien HealthCare",
+    "slug": "Alien_HealthCare",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/title_icon.png",
+    "userInterfaceStyle": "light",
+    "splash": {
+      "image": "./assets/title_icon.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#ffffff"
+    },
+    "ios": {
+      "supportsTablet": true
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/title_icon.png",
+        "backgroundColor": "#ffffff"
+      },
+      "edgeToEdgeEnabled": true,
+      "package": "com.alienhealthcare"
+    },
+    "scheme": "com.alienhealthcare",
+    "web": {
+      "favicon": "./assets/title_icon.png"
+    },
+    "plugins": [
+      "expo-web-browser",
+      [
+        "react-native-ble-plx",
+        {
+          "isBackgroundEnabled": true,
+          "modes": [
+            "peripheral",
+            "central"
+          ],
+          "bluetoothAlwaysPermission": "Allow $(PRODUCT_NAME) to connect to bluetooth devices"
+        }
+      ]
+    ]
+  }
+}

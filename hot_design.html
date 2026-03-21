@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+
+<html class="h-full" lang="en"><head>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Heat Control Module - Hot Mode</title>
+<!-- Load Tailwind CSS v3 -->
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<!-- Load Manrope Font -->
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&amp;display=swap" rel="stylesheet"/>
+<script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['Manrope', 'sans-serif'],
+          },
+          colors: {
+            brand: {
+              DEFAULT: '#f97316', // Vibrant Orange (orange-500)
+              dark: '#7c2d12',
+              light: '#fb923c',
+              heat: '#f97316', // Hot orange accent
+            },
+            darkBg: '#0a0a0a', // Deep black background
+          },
+          borderRadius: {
+            'custom': '8px',
+          }
+        }
+      }
+    }
+  </script>
+<style data-purpose="custom-layout">
+    body {
+      background-color: #0a0a0a;
+      background-image: radial-gradient(circle at center, #2a1105 0%, #0a0a0a 100%);
+      color: #ffffff;
+      -webkit-tap-highlight-color: transparent;
+    }
+    
+    /* Visual styling for the temperature dial ring with orange gradient */
+    .dial-ring {
+      background: conic-gradient(from 180deg, #f97316 0%, #431407 70%, #1a1a1a 70%, #1a1a1a 100%);
+      mask: radial-gradient(transparent 65%, black 66%);
+      -webkit-mask: radial-gradient(transparent 65%, black 66%);
+    }
+
+    /* Soft glow for the active temperature indicator - vibrant orange */
+    .glow-effect {
+      box-shadow: 0 0 20px rgba(249, 115, 22, 0.6);
+    }
+    
+    .fire-glow {
+      filter: drop-shadow(0 0 15px rgba(249, 115, 22, 0.5));
+    }
+
+    /* Subtle ambient orange glow for the background depth */
+    .ambient-glow {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      width: 100%;
+      height: 100%;
+      background: radial-gradient(circle, rgba(249, 115, 22, 0.05) 0%, transparent 70%);
+      pointer-events: none;
+      z-index: -1;
+    }
+  </style>
+</head>
+<body class="h-full font-sans antialiased overflow-hidden select-none relative">
+<div class="ambient-glow"></div>
+<!-- BEGIN: Main Container -->
+<main class="flex flex-col h-screen max-w-md mx-auto p-6 justify-between items-center" data-purpose="app-container">
+<!-- BEGIN: Header -->
+<header class="w-full flex justify-between items-center" data-purpose="top-navigation">
+<div class="flex flex-col">
+<button class="p-1.5 rounded-full bg-white/5 hover:bg-white/10 transition-colors w-fit mb-1">
+<svg class="h-5 w-5" fill="none" stroke="currentColor" viewbox="0 0 24 24">
+<path d="M15 19l-7-7 7-7" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"></path>
+</svg>
+</button>
+<span class="text-xs font-medium text-white/40 mt-1">
+<h2 class="text-white text-xl font-bold tracking-tight">Hello, Username</h2>
+</span>
+</div>
+<div class="flex items-center gap-3">
+<button class="px-4 py-1.5 bg-red-500/10 text-red-400 text-xs font-bold rounded-full border border-red-500/20 uppercase tracking-widest">Off</button>
+<button class="p-2 text-white/60 hover:text-white">
+<span class="material-symbols-outlined text-2xl">settings</span>
+</button>
+</div>
+</header>
+<div class="w-full flex justify-center mt-2" data-purpose="mode-toggle">
+<div class="flex bg-white/5 p-1 rounded-full border border-white/10 w-44">
+<button class="flex-1 py-2 text-[10px] font-bold uppercase tracking-wider rounded-full bg-brand text-white shadow-sm shadow-brand/20">Hot</button>
+<button class="flex-1 py-2 text-[10px] font-bold uppercase tracking-wider rounded-full text-white/40 hover:text-white/60 transition-colors">Cold</button>
+</div>
+</div>
+<!-- END: Header -->
+<!-- BEGIN: Temperature Dial -->
+<section class="relative flex flex-col items-center justify-center w-full py-6" data-purpose="temperature-display-section">
+<!-- Outer Dial Circle -->
+<div class="relative w-72 h-72 rounded-full flex items-center justify-center border-4 border-white/5 shadow-2xl shadow-orange-900/10">
+<!-- Progress Ring (Stylized Conic Gradient) -->
+<div class="absolute inset-2 rounded-full dial-ring opacity-90"></div>
+<!-- Rotating Indicator Pin (Large dot-shaped knob) -->
+<div class="absolute inset-0 flex items-start justify-center rotate-[120deg]" style="transform: rotate(120deg);">
+<div class="w-5 h-5 bg-brand-light rounded-full glow-effect -translate-y-2 border-2 border-white/20"></div>
+</div>
+<!-- Central Temperature Display -->
+<div class="flex flex-col items-center z-10 text-center">
+<span class="text-6xl font-extrabold tracking-tighter" id="current-temp">42°C</span>
+<span class="text-3xl font-mono font-bold tracking-widest mt-2 text-white/90">14:59</span>
+<button class="mt-6 px-5 py-2 text-[10px] font-bold uppercase tracking-widest bg-brand/10 border border-brand/30 text-brand-light rounded-full hover:bg-brand/20 transition-colors" data-purpose="set-timer-button">
+  Set Timer
+</button>
+</div>
+</div>
+</section>
+<!-- END: Temperature Dial -->
+<!-- BEGIN: Timer and Presets -->
+<section class="w-full pb-8" data-purpose="controls-bottom">
+<div class="flex rounded-2xl w-full mb-4" data-purpose="control-mode-selector">
+<button class="w-full py-5 text-[12px] font-bold uppercase tracking-[0.2em] rounded-xl bg-brand text-white shadow-lg shadow-brand/30 transition-all hover:bg-brand-light active:scale-[0.98]">Custom Preset</button>
+</div>
+</section>
+<!-- END: Timer and Presets -->
+<!-- BEGIN: Bottom Interaction Bar -->
+<footer class="w-full pb-2" data-purpose="bottom-bar">
+<div class="h-1.5 w-32 bg-white/20 rounded-full mx-auto"></div>
+</footer>
+<!-- END: Bottom Interaction Bar -->
+</main>
+<!-- END: Main Container -->
+<script data-purpose="ui-logic">
+    console.log("Vibrant Hot Module UI - Centered Temp and Timer Display");
+</script>
+</body></html>
