@@ -22,7 +22,6 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import GradientBackground from '../components/GradientBackground';
 import TemperatureDial from '../components/TemperatureDial';
 import WheelTimer from '../components/WheelTimer';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { COLORS, SPACING } from '../constants/theme';
 import { sendCommandToDevice } from '../hooks/useBluetooth';
 import { 
