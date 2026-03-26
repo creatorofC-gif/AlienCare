@@ -179,9 +179,21 @@ const DashboardScreen = ({ navigation, route }) => {
     useEffect(() => {
         if (!isConnected) return;
 
+        let lastHeartbeat = Date.now();
+        const heartbeatInterval = setInterval(() => {
+            if (Date.now() - lastHeartbeat > 4000) {
+                console.log("[Dashboard] Heatbeat timeout! Disconnecting visibly.");
+                setIsConnected(false);
+                clearInterval(heartbeatInterval);
+                // Dynamically import to safely kill connection from within interval
+                import('../../BLE_connection/TherapyBle').then(m => m.disconnectDevice());
+            }
+        }, 1500);
+
         // Start monitoring from ESP32
         monitorDeviceStatus(
             (newMode) => {
+                lastHeartbeat = Date.now();
                 if (Date.now() < ignoreDeviceUpdateUntilRef.current) {
                     return;
                 }
@@ -192,6 +204,7 @@ const DashboardScreen = ({ navigation, route }) => {
                 });
             },
             (newTemp) => {
+                lastHeartbeat = Date.now();
                 if (isUserAdjustingDialRef.current) {
                     return;
                 }
@@ -205,6 +218,7 @@ const DashboardScreen = ({ navigation, route }) => {
                 });
             },
             (newTimerSeconds) => {
+                lastHeartbeat = Date.now();
                 if (Date.now() < ignoreDeviceUpdateUntilRef.current) {
                     return;
                 }
@@ -238,10 +252,12 @@ const DashboardScreen = ({ navigation, route }) => {
         // Listen for disconnect
         onDeviceDisconnect(() => {
             setIsConnected(false);
+            if (heartbeatInterval) clearInterval(heartbeatInterval);
             Alert.alert("Disconnected", "The TherapyBand has been disconnected.");
         });
 
         return () => {
+            if (heartbeatInterval) clearInterval(heartbeatInterval);
             stopDeviceStatusMonitoring();
         };
     }, [isConnected]);
@@ -710,8 +726,8 @@ const DashboardScreen = ({ navigation, route }) => {
         isUserAdjustingDialRef.current = false;
         ignoreDeviceUpdateUntilRef.current = Date.now() + cooldownDuration;
         lastTempUpdateSourceRef.current = 'user';
-        const activeTimer = isTimerRunning ? Math.ceil(remainingSeconds / 60) : 0;
-        sendCommandToDevice(mode, temp, activeTimer);
+        // Send -1 to preserve the hardware timer's current active countdown seamlessly
+        sendCommandToDevice(mode, temp, -1);
     };
 
     const lastSentTimeRef = React.useRef(0);

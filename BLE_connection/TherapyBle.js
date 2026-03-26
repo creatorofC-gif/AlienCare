@@ -11,8 +11,6 @@ function getBleManager() {
     manager = new BleManager();
     return manager;
   } catch (e) {
-    // When the native module isn't linked/ready, BleManager constructor can throw
-    console.log('[BLE] BleManager init failed. Native module not ready/linked.', e);
     manager = null;
     return null;
   }
@@ -49,8 +47,7 @@ export async function requestBluetoothPermission() {
     }
 
     try {
-      const granted = await PermissionsAndroid.requestMultiple(permissions);
-      console.log('Permissions responses:', granted);
+      await PermissionsAndroid.requestMultiple(permissions);
     } catch (err) {
       console.warn(err);
     }
@@ -63,17 +60,13 @@ export async function requestBluetoothPermission() {
 export async function scanForDevices(onDeviceFound) {
   const m = getBleManager();
   if (!m) {
-    console.log('[BLE] scanForDevices skipped: BLE not available');
     onDeviceFound([]);
     return;
   }
   const discoveredDevices = new Map();
 
   m.startDeviceScan(null, null, (error, device) => {
-    if (error) {
-      console.log("Scan Error:", error);
-      return;
-    }
+    if (error) return;
 
     if (device && (device.name || device.localName)) {
       discoveredDevices.set(device.id, device);
@@ -94,7 +87,6 @@ export async function scanForDevices(onDeviceFound) {
 export async function connectToGivenDevice(device, onConnected) {
   const m = getBleManager();
   if (!m) {
-    console.log('[BLE] connectToGivenDevice skipped: BLE not available');
     onConnected(false);
     return;
   }
@@ -104,10 +96,8 @@ export async function connectToGivenDevice(device, onConnected) {
   try {
     deviceConnected = await device.connect();
     await deviceConnected.discoverAllServicesAndCharacteristics();
-    console.log("Connected Successfully to BLE");
     onConnected(true);
   } catch (err) {
-    console.log("Connection Failed:", err);
     onConnected(false);
   }
 }
@@ -116,10 +106,7 @@ export async function connectToGivenDevice(device, onConnected) {
 // SEND COMMAND
 // --------------------
 async function sendCommand(characteristicUuid, commandStr) {
-  if (!deviceConnected) {
-    console.log("Device not connected");
-    return;
-  }
+  if (!deviceConnected) return;
 
   const encoded = base64.encode(commandStr);
 
@@ -129,10 +116,8 @@ async function sendCommand(characteristicUuid, commandStr) {
       characteristicUuid,
       encoded
     );
-
-    console.log(`Sent to ${characteristicUuid}:`, commandStr);
   } catch (error) {
-    console.log("Write Error:", error);
+    // Write Error
   }
 }
 
@@ -184,10 +169,7 @@ export function monitorTemperature(onTemperatureUpdate) {
     SERVICE_UUID,
     TEMP_UUID,
     (error, characteristic) => {
-      if (error) {
-        console.log("Temperature Monitor Error:", error);
-        return;
-      }
+      if (error) return;
       if (characteristic?.value) {
         const rawVal = base64.decode(characteristic.value);
         onTemperatureUpdate(rawVal);
@@ -277,7 +259,6 @@ export function stopDeviceStatusMonitoring() {
 export function onDeviceDisconnect(callback) {
   if (deviceConnected) {
     deviceConnected.onDisconnected((error, device) => {
-      console.log("BLE Device Disconnected");
       deviceConnected = null;
       callback();
     });

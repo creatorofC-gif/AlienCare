@@ -4,10 +4,10 @@
     "slug": "Alien_HealthCare",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/title_icon.png",
+    "icon": "./assets/icon.jpeg",
     "userInterfaceStyle": "light",
     "splash": {
-      "image": "./assets/title_icon.png",
+      "image": "./assets/icon.jpeg",
       "resizeMode": "contain",
       "backgroundColor": "#ffffff"
     },
@@ -16,15 +16,18 @@
     },
     "android": {
       "adaptiveIcon": {
-        "foregroundImage": "./assets/title_icon.png",
+        "foregroundImage": "./assets/icon.jpeg",
         "backgroundColor": "#ffffff"
       },
       "edgeToEdgeEnabled": true,
       "package": "com.alienhealthcare"
     },
     "scheme": "com.alienhealthcare",
+    "notification": {
+      "icon": "./assets/icon.jpeg"
+    },
     "web": {
-      "favicon": "./assets/title_icon.png"
+      "favicon": "./assets/icon.jpeg"
     },
     "plugins": [
       "expo-web-browser",
