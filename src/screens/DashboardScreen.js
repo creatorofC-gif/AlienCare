@@ -14,11 +14,60 @@ import {
     ActivityIndicator,
     Animated,
     Modal,
-    TextInput
+    TextInput,
+    KeyboardAvoidingView
 } from 'react-native';
 import { Thermometer, Wind, Power, Clock, Plus, Settings, Home, User as UserIcon, X, ChevronLeft } from 'lucide-react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as Notifications from 'expo-notifications';
+
+Notifications.setNotificationHandler({
+    handleNotification: async () => ({
+        shouldShowAlert: true,
+        shouldPlaySound: true,
+        shouldSetBadge: false,
+    }),
+});
+
+// Setup Notification Channel for Android
+const setupNotifications = async () => {
+    if (Platform.OS === 'android') {
+        await Notifications.setNotificationChannelAsync('therapy-timer-vibrate', {
+            name: 'Therapy Timer',
+            importance: Notifications.AndroidImportance.MAX,
+            vibrationPattern: [0, 500, 200, 500, 200, 500],
+            lightColor: '#FF231F7C',
+            sound: null, // explicitly mute sound for vibration only
+            enableVibration: true,
+            showBadge: true,
+        });
+
+        // Setup Silent Channel for active updates (NO Vibrate!)
+        await Notifications.setNotificationChannelAsync('therapy-timer-active', {
+            name: 'Active Therapy Session',
+            importance: Notifications.AndroidImportance.LOW,
+            vibrationPattern: [0],
+            sound: null,
+            enableVibration: false,
+            showBadge: false,
+        });
+
+        // Setup actionable categories
+        await Notifications.setNotificationCategoryAsync('therapy_timer_controls', [
+            {
+                identifier: 'cancel_timer',
+                buttonTitle: 'Cancel',
+                options: { opensAppToForeground: true }
+            }
+        ]);
+    }
+    const { status } = await Notifications.requestPermissionsAsync();
+    if (status !== 'granted') {
+        console.warn('Notification permission not granted');
+    }
+};
+
 import GradientBackground from '../components/GradientBackground';
 import TemperatureDial from '../components/TemperatureDial';
 import WheelTimer from '../components/WheelTimer';
@@ -47,11 +96,12 @@ const DashboardScreen = ({ navigation, route }) => {
 
     const fadeAnim = React.useRef(new Animated.Value(1)).current;
     const timerIntervalRef = React.useRef(null);
+    const notificationIdRef = React.useRef(null);
     const isUserAdjustingDialRef = React.useRef(false);
     const ignoreDeviceUpdateUntilRef = React.useRef(0);
     const lastTempUpdateSourceRef = React.useRef('init'); // 'user' | 'device' | 'init'
     const lastModeUpdateSourceRef = React.useRef('init'); // 'user' | 'device' | 'init'
-    const cooldownDuration = 2000; // 2s cooldown as requested
+    const cooldownDuration = 5000; // 5s cooldown as requested
 
     const [isScanning, setIsScanning] = useState(false);
     const [scanModalVisible, setScanModalVisible] = useState(false);
@@ -84,6 +134,47 @@ const DashboardScreen = ({ navigation, route }) => {
             };
         }, [])
     );
+
+    // Notification Action Listener for Cancel Button
+    useEffect(() => {
+        const subscription = Notifications.addNotificationResponseReceivedListener(response => {
+            if (response.actionIdentifier === 'cancel_timer') {
+                stopTimer();
+            }
+        });
+        return () => subscription.remove();
+    }, []);
+
+    // Session Restoration (App Killed/Restarted)
+    useEffect(() => {
+        const restoreSession = async () => {
+            try {
+                const targetStr = await AsyncStorage.getItem('therapy_timer_target');
+                if (targetStr) {
+                    const target = parseInt(targetStr, 10);
+                    const now = Date.now();
+                    if (target > now) {
+                        // Resume local timer representation
+                        const remaining = Math.round((target - now) / 1000);
+                        setRemainingSeconds(remaining);
+                        setIsTimerRunning(true);
+                    } else {
+                        // Clean up old state
+                        await AsyncStorage.removeItem('therapy_timer_target');
+                    }
+                }
+            } catch (err) { }
+        };
+        restoreSession();
+    }, []);
+
+    useEffect(() => {
+        if (route?.params?.autoConnect) {
+            setScanModalVisible(true);
+            handleBluetoothScan();
+            navigation.setParams({ autoConnect: undefined });
+        }
+    }, [route?.params?.autoConnect]);
 
     useEffect(() => {
         if (!isConnected) return;
@@ -119,19 +210,30 @@ const DashboardScreen = ({ navigation, route }) => {
                 }
                 
                 if (newTimerSeconds > 0) {
+                    // Do not let the hardware's imprecise (rounded to minute) backup timer 
+                    // overwrite the app's ultra-precise seconds timer while it's ticking.
+                    if (prevIsTimerRunningRef.current) return;
+
                     setRemainingSeconds(newTimerSeconds);
                     setIsTimerRunning(true);
                     setTimer(Math.ceil(newTimerSeconds / 60));
                     prevIsTimerRunningRef.current = true;
                 } else {
+                    if (isUserAdjustingDialRef.current) return;
                     if (isTimerRunning) {
                         setIsTimerRunning(false);
                         setRemainingSeconds(0);
                         prevIsTimerRunningRef.current = false;
+                        if (timerIntervalRef.current) {
+                            clearInterval(timerIntervalRef.current);
+                            timerIntervalRef.current = null;
+                        }
                     }
                 }
             }
         );
+
+        setupNotifications();
 
         // Listen for disconnect
         onDeviceDisconnect(() => {
@@ -205,6 +307,11 @@ const DashboardScreen = ({ navigation, route }) => {
             return;
         }
 
+        if (isUserAdjustingDialRef.current) {
+            // Do not send continuous commands to device while user is actively dragging the dial
+            return;
+        }
+
         // When changing mode or temp, skip sending the timer characteristic if it is already running
         // so we don't reset the device's own timer.
         sendCommandToDevice(mode, temp, -1); 
@@ -214,7 +321,7 @@ const DashboardScreen = ({ navigation, route }) => {
         // Only send timer command when state changes (start/stop)
         if (isTimerRunning !== prevIsTimerRunningRef.current) {
             if (isTimerRunning) {
-                sendCommandToDevice(mode, temp, Math.ceil(remainingSeconds / 60));
+                sendCommandToDevice(mode, temp, remainingSeconds);
             } else {
                 sendCommandToDevice(mode, temp, 0);
             }
@@ -223,7 +330,7 @@ const DashboardScreen = ({ navigation, route }) => {
     }, [isTimerRunning]);
 
     useEffect(() => {
-        if (!isTimerRunning || isConnected) {
+        if (!isTimerRunning) {
             if (timerIntervalRef.current) {
                 clearInterval(timerIntervalRef.current);
                 timerIntervalRef.current = null;
@@ -248,7 +355,22 @@ const DashboardScreen = ({ navigation, route }) => {
                         timerIntervalRef.current = null;
                     }
                     setIsTimerRunning(false);
-                    Alert.alert("Timer Complete", "Your timer has finished!");
+                    AsyncStorage.removeItem('therapy_timer_target').catch(() => {});
+                    // Final "Time Up" notification handled here
+                    Notifications.scheduleNotificationAsync({
+                        content: {
+                            title: 'Time\'s Up!',
+                            body: 'Timer Completed. Your therapy session has finished.',
+                            sound: false,
+                            priority: Notifications.AndroidNotificationPriority.MAX,
+                            vibrate: [0, 500, 200, 500, 200, 500],
+                            android: {
+                                channelId: 'therapy-timer-vibrate',
+                                sound: false,
+                            }
+                        },
+                        trigger: null, // show immediately
+                    });
                     return 0;
                 }
                 return prev - 1;
@@ -263,7 +385,39 @@ const DashboardScreen = ({ navigation, route }) => {
         };
     }, [isTimerRunning, remainingSeconds, isConnected]);
 
-    const handleTimerSet = (minutes) => {
+    // Live Notification Update Effect
+    useEffect(() => {
+        if (isTimerRunning && remainingSeconds > 0) {
+            const updateNotification = async () => {
+                const h = Math.floor(remainingSeconds / 3600);
+                const m = Math.floor((remainingSeconds % 3600) / 60);
+                const s = remainingSeconds % 60;
+                const timeStr = `${h > 0 ? h + ':' : ''}${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+
+                await Notifications.scheduleNotificationAsync({
+                    identifier: 'therapy-session-active',
+                    content: {
+                        title: 'Therapy Session Active',
+                        body: `Time remaining: ${timeStr}`,
+                        sticky: true,
+                        autoDismiss: false,
+                        categoryId: 'therapy_timer_controls',
+                        android: {
+                            channelId: 'therapy-timer-active', // Silent channel
+                            ongoing: true,
+                        }
+                    },
+                    trigger: null,
+                });
+            };
+
+            updateNotification();
+        } else {
+            Notifications.dismissNotificationAsync('therapy-session-active');
+        }
+    }, [isTimerRunning, remainingSeconds]); // Update every second!
+
+    const handleTimerSet = async (minutes) => {
         if (mode === 'Off') {
             Alert.alert("Mode Off", "Please select Hot or Cold mode to start the timer.");
             return;
@@ -272,6 +426,31 @@ const DashboardScreen = ({ navigation, route }) => {
         const total = Math.max(0, Math.round(minutes * 60));
         setRemainingSeconds(total);
         setIsTimerRunning(total > 0);
+        ignoreDeviceUpdateUntilRef.current = Date.now() + cooldownDuration;
+
+        if (total > 0) {
+            // Persist the target so we survive app kills
+            await AsyncStorage.setItem('therapy_timer_target', (Date.now() + total * 1000).toString());
+
+            const { status } = await Notifications.requestPermissionsAsync();
+            if (status === 'granted') {
+                // Scheduled notification for the end
+                const id = await Notifications.scheduleNotificationAsync({
+                    content: {
+                        title: 'Time\'s Up!',
+                        body: 'Timer Completed. Your therapy session has finished.',
+                        sound: false,
+                        priority: Notifications.AndroidNotificationPriority.HIGH,
+                        vibrate: [0, 500, 200, 500, 200, 500],
+                        android: {
+                            channelId: 'therapy-timer-vibrate',
+                        }
+                    },
+                    trigger: { seconds: total },
+                });
+                notificationIdRef.current = id;
+            }
+        }
     };
 
     useEffect(() => {
@@ -283,6 +462,17 @@ const DashboardScreen = ({ navigation, route }) => {
     const stopTimer = () => {
         setIsTimerRunning(false);
         setRemainingSeconds(0);
+        ignoreDeviceUpdateUntilRef.current = Date.now() + cooldownDuration;
+        AsyncStorage.removeItem('therapy_timer_target').catch(() => {});
+        
+        if (notificationIdRef.current) {
+            Notifications.cancelScheduledNotificationAsync(notificationIdRef.current);
+            notificationIdRef.current = null;
+        }
+        Notifications.dismissNotificationAsync('therapy-session-active');
+        
+        // Also inform the hardware to stop the timer
+        sendCommandToDevice(mode, temp, 0); 
     };
 
     useEffect(() => {
@@ -356,6 +546,10 @@ const DashboardScreen = ({ navigation, route }) => {
     };
 
     const applyPreset = (preset) => {
+        if (!isConnected) {
+            Alert.alert("Offline", "Please connect to the TherapyBand to use presets.");
+            return;
+        }
         ignoreDeviceUpdateUntilRef.current = Date.now() + cooldownDuration;
         lastModeUpdateSourceRef.current = 'user';
         lastTempUpdateSourceRef.current = 'user';
@@ -390,6 +584,16 @@ const DashboardScreen = ({ navigation, route }) => {
             ignoreDeviceUpdateUntilRef.current = Date.now() + cooldownDuration;
             lastModeUpdateSourceRef.current = 'user';
             setMode(title);
+            
+            // INSTANT MODE SWITCH: Activation fix for Cold/Hot buttons
+            if (title === 'Off') {
+                sendCommandToDevice('Off', 0, 0);
+            } else {
+                const { min } = TEMP_RANGES[title];
+                const startTemp = (title === 'Hot') ? Math.max(temp, min) : Math.min(temp, 24);
+                sendCommandToDevice(title, startTemp, -1);
+                setTemp(startTemp);
+            }
         };
 
         return (
@@ -510,9 +714,19 @@ const DashboardScreen = ({ navigation, route }) => {
         sendCommandToDevice(mode, temp, activeTimer);
     };
 
+    const lastSentTimeRef = React.useRef(0);
+
     const handleTempChangeFromDial = (newTemp) => {
+        if (!isConnected) return;
         lastTempUpdateSourceRef.current = 'user';
         setTemp(newTemp);
+        
+        // INSTANT FEEDBACK: send update every 150ms while dragging
+        const now = Date.now();
+        if (now - lastSentTimeRef.current > 150) {
+            sendCommandToDevice(mode, newTemp, -1);
+            lastSentTimeRef.current = now;
+        }
     };
 
     return (
@@ -523,7 +737,12 @@ const DashboardScreen = ({ navigation, route }) => {
                     <View style={styles.headerLeft}>
                         <TouchableOpacity 
                             style={styles.backButton}
-                            onPress={() => navigation.goBack()}
+                            onPress={() => {
+                                Alert.alert("Exit App", "Are you sure you want to exit?", [
+                                    { text: "Cancel", style: "cancel" },
+                                    { text: "Exit", onPress: () => BackHandler.exitApp() }
+                                ]);
+                            }}
                         >
                             <ChevronLeft color="white" size={20} />
                         </TouchableOpacity>
@@ -557,7 +776,14 @@ const DashboardScreen = ({ navigation, route }) => {
                                 {isConnected ? 'CONNECTED' : 'OFFLINE'}
                             </Text>
                         </TouchableOpacity>
-                        <TouchableOpacity style={styles.offBadge} onPress={() => setMode('Off')}>
+                        <TouchableOpacity 
+                            style={[styles.offBadge, !isConnected && { opacity: 0.5 }]} 
+                            onPress={() => {
+                                if (!isConnected) return;
+                                setMode('Off');
+                            }}
+                            activeOpacity={isConnected ? 0.7 : 1}
+                        >
                             <Text style={styles.offBadgeText}>OFF</Text>
                         </TouchableOpacity>
                         <TouchableOpacity style={styles.settingsButton} onPress={() => navigation.navigate('Profile', { username, deviceName })}>
@@ -572,18 +798,34 @@ const DashboardScreen = ({ navigation, route }) => {
                         <TouchableOpacity 
                             style={[
                                 styles.modeTab, 
-                                mode === 'Hot' && styles.hotTabActive
+                                mode === 'Hot' && styles.hotTabActive,
+                                !isConnected && { opacity: 0.5 }
                             ]} 
-                            onPress={() => setMode('Hot')}
+                            onPress={() => {
+                                if (!isConnected) {
+                                    Alert.alert("Offline", "Please connect to the TherapyBand via Bluetooth first.");
+                                    return;
+                                }
+                                setMode('Hot');
+                            }}
+                            activeOpacity={isConnected ? 0.7 : 1}
                         >
                             <Text style={[styles.modeTabText, mode === 'Hot' && {color: 'white'}]}>HOT</Text>
                         </TouchableOpacity>
                         <TouchableOpacity 
                             style={[
                                 styles.modeTab, 
-                                mode === 'Cold' && styles.coldTabActive
+                                mode === 'Cold' && styles.coldTabActive,
+                                !isConnected && { opacity: 0.5 }
                             ]} 
-                            onPress={() => setMode('Cold')}
+                            onPress={() => {
+                                if (!isConnected) {
+                                    Alert.alert("Offline", "Please connect to the TherapyBand via Bluetooth first.");
+                                    return;
+                                }
+                                setMode('Cold');
+                            }}
+                            activeOpacity={isConnected ? 0.7 : 1}
                         >
                             <Text style={[styles.modeTabText, mode === 'Cold' && {color: 'white'}]}>COLD</Text>
                         </TouchableOpacity>
@@ -605,8 +847,23 @@ const DashboardScreen = ({ navigation, route }) => {
                             mode={mode}
                             isTimerRunning={isTimerRunning}
                             timerValue={`${Math.floor(remainingSeconds / 60) < 10 ? '0' : ''}${Math.floor(remainingSeconds / 60)}:${remainingSeconds % 60 < 10 ? '0' : ''}${remainingSeconds % 60}`}
-                            onTimerPress={() => setShowTimerModal(true)}
-                            onInteractionStart={handleDialInteractionStart}
+                            onTimerPress={() => {
+                                if (!isConnected) {
+                                    Alert.alert("Offline", "Please connect to the TherapyBand to use the timer.");
+                                    return;
+                                }
+                                if (isTimerRunning) {
+                                    stopTimer();
+                                } else {
+                                    setShowTimerModal(true);
+                                }
+                            }}
+                            onInteractionStart={() => {
+                                if (!isConnected) {
+                                    Alert.alert("Offline", "Please connect to the TherapyBand to change temperature.");
+                                }
+                                handleDialInteractionStart();
+                            }}
                             onInteractionEnd={handleDialInteractionEnd}
                         />
                     )}
@@ -621,9 +878,10 @@ const DashboardScreen = ({ navigation, route }) => {
                                     key={preset.id}
                                     style={[
                                         styles.presetChip,
-                                        { borderColor: preset.mode === 'Hot' ? 'rgba(249, 115, 22, 0.35)' : preset.mode === 'Cold' ? 'rgba(59, 130, 246, 0.35)' : 'rgba(255,255,255,0.18)' }
+                                        { borderColor: preset.mode === 'Hot' ? 'rgba(249, 115, 22, 0.35)' : preset.mode === 'Cold' ? 'rgba(59, 130, 246, 0.35)' : 'rgba(255,255,255,0.18)' },
+                                        !isConnected && { opacity: 0.5 }
                                     ]}
-                                    activeOpacity={0.85}
+                                    activeOpacity={isConnected ? 0.85 : 1}
                                     onPress={() => applyPreset(preset)}
                                     onLongPress={() => handleDeletePreset(preset.id)}
                                     delayLongPress={500}
@@ -705,32 +963,41 @@ const DashboardScreen = ({ navigation, route }) => {
                 animationType="slide"
                 onRequestClose={() => setShowPresetModal(false)}
             >
-                <View style={styles.modalOverlay}>
-                    <View style={styles.modalContent}>
-                        <View style={styles.modalHeader}>
-                            <Text style={styles.modalTitle}>Save Preset</Text>
-                            <TouchableOpacity onPress={() => setShowPresetModal(false)}>
-                                <X color="rgba(255,255,255,0.6)" size={24} />
+                <KeyboardAvoidingView 
+                    behavior={Platform.OS === "ios" ? "padding" : "height"}
+                    style={{ flex: 1 }}
+                >
+                    <Pressable style={styles.modalOverlay} onPress={() => setShowPresetModal(false)}>
+                        <Pressable style={styles.modalContent} onPress={(e) => e.stopPropagation()}>
+                            <View style={styles.modalHeader}>
+                                <Text style={styles.modalTitle}>Save Preset</Text>
+                                <TouchableOpacity 
+                                    hitSlop={{ top: 20, bottom: 20, left: 20, right: 20 }}
+                                    onPress={() => setShowPresetModal(false)}
+                                >
+                                    <X color="rgba(255,255,255,0.6)" size={24} />
+                                </TouchableOpacity>
+                            </View>
+                            <Text style={styles.modalSubtitle}>Save current settings</Text>
+                            <TextInput
+                                style={styles.input}
+                                value={newPresetName}
+                                onChangeText={setNewPresetName}
+                                placeholder={`e.g., "Mode ${presets.length + 1}"`}
+                                placeholderTextColor="rgba(255,255,255,0.4)"
+                                maxLength={16}
+                                autoFocus
+                            />
+                            <TouchableOpacity
+                                style={[styles.saveBtn, !newPresetName.trim() && { opacity: 0.5 }]}
+                                onPress={handleSavePresetConfirm}
+                                disabled={!newPresetName.trim()}
+                            >
+                                <Text style={styles.saveBtnText}>Save preset</Text>
                             </TouchableOpacity>
-                        </View>
-                        <Text style={styles.modalSubtitle}>Save current settings</Text>
-                        <TextInput
-                            style={styles.input}
-                            value={newPresetName}
-                            onChangeText={setNewPresetName}
-                            placeholder={`e.g., "Mode ${presets.length + 1}"`}
-                            placeholderTextColor="rgba(255,255,255,0.4)"
-                            maxLength={16}
-                        />
-                        <TouchableOpacity
-                            style={[styles.saveBtn, !newPresetName.trim() && { opacity: 0.5 }]}
-                            onPress={handleSavePresetConfirm}
-                            disabled={!newPresetName.trim()}
-                        >
-                            <Text style={styles.saveBtnText}>Save preset</Text>
-                        </TouchableOpacity>
-                    </View>
-                </View>
+                        </Pressable>
+                    </Pressable>
+                </KeyboardAvoidingView>
             </Modal>
         </GradientBackground>
     );

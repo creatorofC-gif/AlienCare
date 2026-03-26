@@ -369,7 +369,8 @@ const styles = StyleSheet.create({
         backgroundColor: 'rgba(255,255,255,0.95)',
     },
     beaconWrap: {
-        marginBottom: 18,
+        marginTop: 20,
+        marginBottom: 20,
     },
     beaconOuter: {
         width: 74,

@@ -44,16 +44,8 @@ const LoginScreen = ({ navigation }) => {
         // Mock verification success
         console.log('Dummy OTP Verified Success');
         
-        try {
-            await AsyncStorage.setItem('isLoggedIn', 'true');
-            await AsyncStorage.setItem('username', 'OTP User');
-        } catch (e) {
-            console.error('Failed to save login state', e);
-        }
-
-        navigation.navigate('Bluetooth', {
-            email: `${phoneNumber}@dummy.com`,
-            username: 'OTP User'
+        navigation.navigate('NameSetup', {
+            phoneNumber,
         });
     };
 

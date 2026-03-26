@@ -40,15 +40,7 @@ const VerificationScreen = ({ navigation, route }) => {
         }
 
         // Mock verification success
-        try {
-            await AsyncStorage.setItem('isLoggedIn', 'true');
-            await AsyncStorage.setItem('username', username);
-        } catch (e) {
-            console.error('Failed to save login state', e);
-        }
-
-        navigation.navigate('Bluetooth', {
-            username,
+        navigation.navigate('NameSetup', {
             phoneNumber,
         });
     };

@@ -10,6 +10,7 @@ const STROKE_WIDTH = 30; // slightly thicker for conic feeling
 const RADIUS = (DIAL_SIZE - STROKE_WIDTH) / 2;
 const CENTER = DIAL_SIZE / 2;
 const INNER_RADIUS = RADIUS - STROKE_WIDTH / 2 - 10;
+const MAX_ANGLE = 340;
 
 const TemperatureDial = ({
     value,
@@ -34,7 +35,7 @@ const TemperatureDial = ({
         }
 
         const clampedValue = Math.min(Math.max(value, min), max);
-        const targetAngle = ((clampedValue - min) / range) * 360;
+        const targetAngle = ((clampedValue - min) / range) * MAX_ANGLE;
 
         Animated.spring(animatedAngle, {
             toValue: targetAngle,
@@ -62,67 +63,83 @@ const TemperatureDial = ({
 
     const range = max - min;
     const clampedValue = Math.min(Math.max(value, min), max);
-    const angleOfValue = range <= 0 ? 0 : ((clampedValue - min) / range) * 360;
+    const angleOfValue = range <= 0 ? 0 : ((clampedValue - min) / range) * MAX_ANGLE;
     const { x, y } = polarToCartesian(angleOfValue);
 
-    const lastAngleRef = useRef(((clampedValue - min) / range) * 360);
+    const propsRef = useRef({ onChange, onInteractionStart, onInteractionEnd, min, max, mode, range });
+    useEffect(() => {
+        propsRef.current = { onChange, onInteractionStart, onInteractionEnd, min, max, mode, range };
+    });
+
+    const lastAngleRef = useRef(((clampedValue - min) / range) * MAX_ANGLE);
 
     const panResponder = React.useRef(
         PanResponder.create({
-            onStartShouldSetPanResponder: () => mode === 'Hot' || mode === 'Cold',
-            onMoveShouldSetPanResponder: () => mode === 'Hot' || mode === 'Cold',
-            onPanResponderGrant: (e) => {
+            onStartShouldSetPanResponder: (e) => {
+                const { mode: currentMode } = propsRef.current;
                 const { locationX, locationY } = e.nativeEvent;
-                const adjustedX = locationX - (width - DIAL_SIZE) / 2;
-                const adjustedY = locationY - 20;
-                lastAngleRef.current = cartesianToPolar(adjustedX, adjustedY);
+                const dx = locationX - 2 - CENTER;
+                const dy = locationY - 2 - CENTER;
+                const dist = Math.sqrt(dx * dx + dy * dy);
+                
+                // Only respond if touch is on the ring (with some tolerance)
+                const inRing = dist >= RADIUS - STROKE_WIDTH && dist <= RADIUS + STROKE_WIDTH;
+                return (currentMode === 'Hot' || currentMode === 'Cold') && inRing;
+            },
+            onMoveShouldSetPanResponder: (e) => {
+                const { mode: currentMode } = propsRef.current;
+                const { locationX, locationY } = e.nativeEvent;
+                const dx = locationX - 2 - CENTER;
+                const dy = locationY - 2 - CENTER;
+                const dist = Math.sqrt(dx * dx + dy * dy);
+                const inRing = dist >= RADIUS - STROKE_WIDTH && dist <= RADIUS + STROKE_WIDTH;
+                return (currentMode === 'Hot' || currentMode === 'Cold') && inRing;
+            },
+            onPanResponderGrant: (e) => {
+                const { onInteractionStart: onStart } = propsRef.current;
+                const { locationX, locationY } = e.nativeEvent;
+                lastAngleRef.current = cartesianToPolar(locationX - 2, locationY - 2);
 
                 Animated.spring(scaleAnim, {
                     toValue: 0.95,
                     useNativeDriver: true,
                 }).start();
-                if (onInteractionStart) {
-                    onInteractionStart();
+                if (onStart) {
+                    onStart();
                 }
             },
             onPanResponderMove: (e) => {
-                if ((mode !== 'Hot' && mode !== 'Cold') || range <= 0) return;
+                const { mode: currentMode, range: currentRange, min: currentMin, max: currentMax, onChange: onValChange } = propsRef.current;
+                if ((currentMode !== 'Hot' && currentMode !== 'Cold') || currentRange <= 0) return;
 
                 const { locationX, locationY } = e.nativeEvent;
-                const adjustedX = locationX - (width - DIAL_SIZE) / 2;
-                const adjustedY = locationY - 20;
-
-                let angle = cartesianToPolar(adjustedX, adjustedY);
+                let angle = cartesianToPolar(locationX - 2, locationY - 2);
                 
-                // Prevent wrap-around
-                const prevAngle = lastAngleRef.current;
+                // Prevent sudden jumps
+                let delta = angle - lastAngleRef.current;
+                if (delta > 180) delta -= 360;
+                if (delta < -180) delta += 360;
                 
-                // If there's a huge jump (e.g. 350 -> 10 or 10 -> 350), it's likely a wrap-around
-                if (Math.abs(angle - prevAngle) > 180) {
-                    if (prevAngle > 180 && angle < 180) {
-                        // User trying to wrap past 360 to 0
-                        angle = 359.9;
-                    } else if (prevAngle < 180 && angle > 180) {
-                        // User trying to wrap past 0 to 360
-                        angle = 0.1;
-                    }
-                }
+                let newAngle = lastAngleRef.current + delta;
+                if (newAngle < 0) newAngle = 0;
+                if (newAngle > MAX_ANGLE) newAngle = MAX_ANGLE;
                 
-                lastAngleRef.current = angle;
+                lastAngleRef.current = newAngle;
 
-                let newValue = Math.round(min + (angle / 360) * range);
-                if (newValue < min) newValue = min;
-                if (newValue > max) newValue = max;
+                let newValue = Math.round(currentMin + (newAngle / MAX_ANGLE) * currentRange);
+                if (newValue < currentMin) newValue = currentMin;
+                if (newValue > currentMax) newValue = currentMax;
 
-                if (onChange) onChange(newValue);
+                if (onValChange) onValChange(newValue);
             },
             onPanResponderRelease: () => {
+                const { onInteractionEnd: onEnd } = propsRef.current;
                 Animated.spring(scaleAnim, {
                     toValue: 1,
                     useNativeDriver: true,
                 }).start();
-                if (onInteractionEnd) {
-                    onInteractionEnd();
+                if (onEnd) {
+                    onEnd();
                 }
             },
         })
@@ -160,9 +177,13 @@ const TemperatureDial = ({
                     isCold && { shadowColor: 'rgba(30, 58, 138, 0.5)' },
                     { transform: [{ scale: scaleAnim }] }
                 ]}
-                {...panResponder.panHandlers}
             >
-                <Svg width={DIAL_SIZE} height={DIAL_SIZE}>
+                {/* Dedicated Touch Overlay for PanResponder */}
+                <View 
+                    style={StyleSheet.absoluteFill} 
+                    {...panResponder.panHandlers} 
+                />
+                <Svg width={DIAL_SIZE} height={DIAL_SIZE} pointerEvents="none">
                     <Defs>
                         <LinearGradient id="gradientTrack" x1="0%" y1="0%" x2="100%" y2="0%">
                             <Stop offset="0%" stopColor={colors.secondary} />
@@ -239,7 +260,12 @@ const TemperatureDial = ({
                         <TouchableOpacity
                             style={[
                                 styles.timerBtn,
-                                isHot
+                                isTimerRunning 
+                                    ? {
+                                        backgroundColor: 'rgba(239, 68, 68, 0.1)',
+                                        borderColor: 'rgba(239, 68, 68, 0.3)',
+                                    }
+                                    : isHot
                                     ? {
                                         backgroundColor: 'rgba(249, 115, 22, 0.1)',
                                         borderColor: 'rgba(249, 115, 22, 0.3)',
@@ -254,10 +280,14 @@ const TemperatureDial = ({
                             <Text
                                 style={[
                                     styles.timerBtnText,
-                                    isHot ? { color: COLORS.hot } : { color: 'white' },
+                                    isTimerRunning 
+                                        ? { color: '#ef4444' } 
+                                        : isHot 
+                                        ? { color: COLORS.hot } 
+                                        : { color: 'white' },
                                 ]}
                             >
-                                SET TIMER
+                                {isTimerRunning ? 'STOP TIMER' : 'SET TIMER'}
                             </Text>
                         </TouchableOpacity>
                     )}

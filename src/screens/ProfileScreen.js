@@ -1,9 +1,10 @@
 import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
-import { ChevronLeft, User as UserIcon, Smartphone, LogOut } from 'lucide-react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Alert } from 'react-native';
+import { ChevronLeft, User as UserIcon, Smartphone, LogOut, Trash2 } from 'lucide-react-native';
 import { CommonActions } from '@react-navigation/native';
 import GradientBackground from '../components/GradientBackground';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { disconnectDevice } from '../../BLE_connection/TherapyBle';
 import { COLORS, SPACING } from '../constants/theme';
 
 const ProfileScreen = ({ navigation, route }) => {
@@ -12,6 +13,7 @@ const ProfileScreen = ({ navigation, route }) => {
 
     const handleLogout = async () => {
         try {
+            disconnectDevice(); // Ensure the hardware connection fully drops
             await AsyncStorage.removeItem('isLoggedIn');
             await AsyncStorage.removeItem('username');
         } catch (error) {
@@ -23,6 +25,36 @@ const ProfileScreen = ({ navigation, route }) => {
                 index: 0,
                 routes: [{ name: 'Signup' }],
             })
+        );
+    };
+
+    const handleForgetDevice = async () => {
+        Alert.alert(
+            "Forget Device?",
+            "This will disconnect the current band and restart the pairing process. You will need to scan again.",
+            [
+                { text: "Cancel", style: "cancel" },
+                { 
+                    text: "Forget", 
+                    style: "destructive", 
+                    onPress: async () => {
+                        try {
+                            disconnectDevice(); // Explicity kill the BLE connection first
+                            await AsyncStorage.removeItem('hasSeenBluetoothOnLaunch');
+                            // Also logout to be safe and restart flow
+                            await AsyncStorage.removeItem('isLoggedIn');
+                            navigation.dispatch(
+                                CommonActions.reset({
+                                    index: 0,
+                                    routes: [{ name: 'Signup' }],
+                                })
+                            );
+                        } catch (e) {
+                            console.error(e);
+                        }
+                    }
+                }
+            ]
         );
     };
 
@@ -55,7 +87,15 @@ const ProfileScreen = ({ navigation, route }) => {
                     </View>
                 </View>
 
-                <TouchableOpacity style={styles.logoutButton} onPress={handleLogout}>
+                <TouchableOpacity 
+                    style={[styles.logoutButton, { backgroundColor: 'rgba(239, 68, 68, 0.15)', borderColor: 'rgba(239, 68, 68, 0.3)', borderWidth: 1 }]} 
+                    onPress={handleForgetDevice}
+                >
+                    <Trash2 color="#ef4444" size={18} />
+                    <Text style={[styles.logoutText, { color: '#ef4444' }]}>Forget Device</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity style={[styles.logoutButton, { marginTop: 16 }]} onPress={handleLogout}>
                     <LogOut color="#fff" size={18} />
                     <Text style={styles.logoutText}>Log Out</Text>
                 </TouchableOpacity>

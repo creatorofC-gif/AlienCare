@@ -174,14 +174,13 @@ class SetCB : public BLECharacteristicCallbacks {
 
 class TimerCB : public BLECharacteristicCallbacks {
   void onWrite(BLECharacteristic *c) {
-    int min = atoi(c->getValue().c_str());
-    if (min <= 0) {
+    int secs = atoi(c->getValue().c_str());
+    if (secs <= 0) {
       timerState = TIMER_IDLE;
       timerMs = 0;
-      showTimerDisplay =
-          false; // Add this line to hide timer instead of blinking 0
+      showTimerDisplay = false; // hide timer instead of blinking 0
     } else {
-      timerMs = (unsigned long)min * 60000UL;
+      timerMs = (unsigned long)secs * 1000UL;
       timerStartMs = millis();
       timerState = TIMER_RUNNING;
       showTimerDisplay = true;

@@ -16,13 +16,25 @@ const LogoScreen = ({ navigation }) => {
 
         const checkLoginStatus = async () => {
             try {
+                // One-time clear to force the new Name + OTP flow for testing
+                const hasSeenNewSetup = await AsyncStorage.getItem('hasSeenNewSetup_v2');
+                if (!hasSeenNewSetup) {
+                    await AsyncStorage.multiRemove(['isLoggedIn', 'username', 'hasSeenBluetoothOnLaunch']);
+                    await AsyncStorage.setItem('hasSeenNewSetup_v2', 'true');
+                }
+
                 const isLoggedIn = await AsyncStorage.getItem('isLoggedIn');
                 if (isLoggedIn === 'true') {
                     const username = await AsyncStorage.getItem('username') || 'User';
                     const hasSeenBluetoothOnLaunch = await AsyncStorage.getItem('hasSeenBluetoothOnLaunch');
 
                     if (hasSeenBluetoothOnLaunch === 'true') {
-                        navigation.replace('Dashboard', { username, deviceName: 'Smart Band', isConnected: false });
+                        navigation.replace('Dashboard', { 
+                            username, 
+                            deviceName: 'Smart Band', 
+                            isConnected: false,
+                            autoConnect: true 
+                        });
                     } else {
                         await AsyncStorage.setItem('hasSeenBluetoothOnLaunch', 'true');
                         navigation.replace('Bluetooth', { username });

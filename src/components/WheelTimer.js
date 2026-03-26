@@ -8,10 +8,23 @@ const { height } = Dimensions.get('window');
 
 // Custom Wheel Picker Component to avoid native dependency issues
 const CustomWheelPicker = ({ items, selectedValue, onValueChange }) => {
+    const scrollRef = useRef(null);
+
+    useEffect(() => {
+        // Scroll to initial value on mount
+        const index = items.findIndex(item => item.value === selectedValue);
+        if (index > -1 && scrollRef.current) {
+            setTimeout(() => {
+                scrollRef.current.scrollTo({ y: index * 50, animated: false });
+            }, 100);
+        }
+    }, []); // Only run once on mount
+
     return (
         <View style={styles.customPickerContainer}>
             <View style={styles.selectionHighlight} />
             <ScrollView
+                ref={scrollRef}
                 showsVerticalScrollIndicator={false}
                 snapToInterval={50} // Height of each item
                 decelerationRate="fast"
@@ -45,7 +58,10 @@ const CustomWheelPicker = ({ items, selectedValue, onValueChange }) => {
 
 
 const WheelTimer = ({ visible, value, onClose, onSave }) => {
-    const [selectedValue, setSelectedValue] = useState(value);
+    // If passed value is 0 (uninitialized), default to 1 min, 0 seconds
+    const startVal = value > 0 ? value : 1;
+    const [selectedMinutes, setSelectedMinutes] = useState(Math.floor(startVal));
+    const [selectedSeconds, setSelectedSeconds] = useState(Math.round((startVal - Math.floor(startVal)) * 60));
     const [isMounted, setIsMounted] = useState(false);
 
     // Animated values for bottom sheet
@@ -56,7 +72,9 @@ const WheelTimer = ({ visible, value, onClose, onSave }) => {
     useEffect(() => {
         if (visible) {
             setIsMounted(true);
-            setSelectedValue(value);
+            const val = value > 0 ? value : 1;
+            setSelectedMinutes(Math.floor(val));
+            setSelectedSeconds(Math.round((val - Math.floor(val)) * 60));
 
             // Reset starting positions
             opacity.setValue(0);
@@ -131,7 +149,8 @@ const WheelTimer = ({ visible, value, onClose, onSave }) => {
             }),
         ]).start(({ finished }) => {
             if (finished) {
-                onSave(selectedValue);
+                // Return float minutes (e.g. 1m 30s -> 1.5)
+                onSave(selectedMinutes + (selectedSeconds / 60));
             }
         });
     };
@@ -148,10 +167,15 @@ const WheelTimer = ({ visible, value, onClose, onSave }) => {
         }
     }, [isMounted, handleClose]);
 
-    // Generate minutes 1 to 60 with "min" label
-    const minutes = Array.from({ length: 90 }, (_, i) => ({
-        label: `${i + 1}`,
-        value: i + 1,
+    // Generate minutes and seconds arrays (0-based)
+    const minutesList = Array.from({ length: 91 }, (_, i) => ({
+        label: `${i}`,
+        value: i,
+    }));
+    
+    const secondsList = Array.from({ length: 60 }, (_, i) => ({
+        label: i.toString().padStart(2, '0'), // 00, 01, ..., 59
+        value: i,
     }));
 
     // Unmount when animation is done and not visible
@@ -190,12 +214,24 @@ const WheelTimer = ({ visible, value, onClose, onSave }) => {
                     {/* Picker Section */}
                     <View style={styles.pickerWrapper}>
                         {/* Dial in the Minutes */}
-                        <CustomWheelPicker
-                            items={minutes}
-                            selectedValue={selectedValue}
-                            onValueChange={setSelectedValue}
-                        />
-                        <Text style={styles.unitLabel}>min</Text>
+                        <View style={styles.columnWrapper}>
+                            <CustomWheelPicker
+                                items={minutesList}
+                                selectedValue={selectedMinutes}
+                                onValueChange={setSelectedMinutes}
+                            />
+                            <Text style={styles.unitLabel}>min</Text>
+                        </View>
+                        
+                        {/* Dial in the Seconds */}
+                        <View style={styles.columnWrapper}>
+                            <CustomWheelPicker
+                                items={secondsList}
+                                selectedValue={selectedSeconds}
+                                onValueChange={setSelectedSeconds}
+                            />
+                            <Text style={styles.unitLabel}>sec</Text>
+                        </View>
                     </View>
 
                     {/* Footer / Start Button */}
@@ -286,9 +322,14 @@ const styles = StyleSheet.create({
         marginBottom: 30,
         overflow: 'hidden',
     },
+    columnWrapper: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        marginHorizontal: 10,
+    },
     customPickerContainer: {
         height: 200,
-        width: 100,
+        width: 80,
         justifyContent: 'center',
     },
     pickerItem: {
@@ -303,7 +344,7 @@ const styles = StyleSheet.create({
     },
     pickerSelectedItemText: {
         color: '#FFFFFF',
-        fontSize: 42,
+        fontSize: 38,
         fontWeight: '700',
     },
     selectionHighlight: {
@@ -316,11 +357,10 @@ const styles = StyleSheet.create({
         zIndex: -1,
     },
     unitLabel: {
-        color: '#FFFFFF',
-        fontSize: 20,
-        fontWeight: '500',
-        marginLeft: 12,
-        marginTop: 10,
+        color: 'rgba(255,255,255,0.6)',
+        fontSize: 18,
+        fontWeight: '600',
+        marginLeft: 2,
     },
     footer: {
         marginTop: 'auto',
