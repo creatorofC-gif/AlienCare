@@ -106,9 +106,13 @@ export async function connectToGivenDevice(device, onConnected) {
 // SEND COMMAND
 // --------------------
 async function sendCommand(characteristicUuid, commandStr) {
-  if (!deviceConnected) return;
+  if (!deviceConnected) {
+    console.warn(`[BLE] sendCommand skipped — no device connected. Char=${characteristicUuid} Val="${commandStr}"`);
+    return;
+  }
 
   const encoded = base64.encode(commandStr);
+  console.log(`[BLE] WRITE char=${characteristicUuid} value="${commandStr}"`);
 
   try {
     await deviceConnected.writeCharacteristicWithResponseForService(
@@ -117,7 +121,7 @@ async function sendCommand(characteristicUuid, commandStr) {
       encoded
     );
   } catch (error) {
-    // Write Error
+    console.error(`[BLE] WRITE ERROR char=${characteristicUuid} val="${commandStr}"`, error?.message);
   }
 }
 
@@ -129,9 +133,10 @@ export async function startHot(temp, time) {
   if (temp > 55) temp = 55;
 
   await sendCommand(MODE_UUID, "HEAT");
-  await sendCommand(SET_UUID, String(temp));
+  await sendCommand(SET_UUID, String(Math.round(temp)));
   if (time >= 0) {
-    await sendCommand(TIMER_UUID, String(time));
+    // MUST send integer — ESP32 parseInt chokes on floats like "1.5" → parses as 1
+    await sendCommand(TIMER_UUID, String(Math.round(time)));
   }
 }
 
@@ -143,9 +148,9 @@ export async function startCool(temp, time) {
   if (temp > 55) temp = 55;
 
   await sendCommand(MODE_UUID, "COOL");
-  await sendCommand(SET_UUID, String(temp));
+  await sendCommand(SET_UUID, String(Math.round(temp)));
   if (time >= 0) {
-    await sendCommand(TIMER_UUID, String(time));
+    await sendCommand(TIMER_UUID, String(Math.round(time)));
   }
 }
 

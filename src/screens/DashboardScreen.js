@@ -15,12 +15,16 @@ import {
     Animated,
     Modal,
     TextInput,
-    KeyboardAvoidingView
+    KeyboardAvoidingView,
+    AppState
 } from 'react-native';
 import { Thermometer, Wind, Power, Clock, Plus, Settings, Home, User as UserIcon, X, ChevronLeft } from 'lucide-react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Notifications from 'expo-notifications';
+import { NativeEventEmitter, NativeModules } from 'react-native';
+
+const { TherapyTimer } = NativeModules;
 
 Notifications.setNotificationHandler({
     handleNotification: async () => ({
@@ -29,44 +33,6 @@ Notifications.setNotificationHandler({
         shouldSetBadge: false,
     }),
 });
-
-// Setup Notification Channel for Android
-const setupNotifications = async () => {
-    if (Platform.OS === 'android') {
-        await Notifications.setNotificationChannelAsync('therapy-timer-vibrate', {
-            name: 'Therapy Timer',
-            importance: Notifications.AndroidImportance.MAX,
-            vibrationPattern: [0, 500, 200, 500, 200, 500],
-            lightColor: '#FF231F7C',
-            sound: null, // explicitly mute sound for vibration only
-            enableVibration: true,
-            showBadge: true,
-        });
-
-        // Setup Silent Channel for active updates (NO Vibrate!)
-        await Notifications.setNotificationChannelAsync('therapy-timer-active', {
-            name: 'Active Therapy Session',
-            importance: Notifications.AndroidImportance.LOW,
-            vibrationPattern: [0],
-            sound: null,
-            enableVibration: false,
-            showBadge: false,
-        });
-
-        // Setup actionable categories
-        await Notifications.setNotificationCategoryAsync('therapy_timer_controls', [
-            {
-                identifier: 'cancel_timer',
-                buttonTitle: 'Cancel',
-                options: { opensAppToForeground: true }
-            }
-        ]);
-    }
-    const { status } = await Notifications.requestPermissionsAsync();
-    if (status !== 'granted') {
-        console.warn('Notification permission not granted');
-    }
-};
 
 import GradientBackground from '../components/GradientBackground';
 import TemperatureDial from '../components/TemperatureDial';
@@ -97,6 +63,8 @@ const DashboardScreen = ({ navigation, route }) => {
     const fadeAnim = React.useRef(new Animated.Value(1)).current;
     const timerIntervalRef = React.useRef(null);
     const notificationIdRef = React.useRef(null);
+    const targetTimeRef = React.useRef(null);
+    const lastRemainingSecondsRef = React.useRef(-1);
     const isUserAdjustingDialRef = React.useRef(false);
     const ignoreDeviceUpdateUntilRef = React.useRef(0);
     const lastTempUpdateSourceRef = React.useRef('init'); // 'user' | 'device' | 'init'
@@ -108,6 +76,7 @@ const DashboardScreen = ({ navigation, route }) => {
 
     const username = route?.params?.username || 'User';
     const deviceName = route?.params?.deviceName || 'Smart Band';
+    const safeResume = route?.params?.safeResume === true;
 
     // Android Back Button Handling
     useFocusEffect(
@@ -135,13 +104,43 @@ const DashboardScreen = ({ navigation, route }) => {
         }, [])
     );
 
-    // Notification Action Listener for Cancel Button
     useEffect(() => {
-        const subscription = Notifications.addNotificationResponseReceivedListener(response => {
-            if (response.actionIdentifier === 'cancel_timer') {
-                stopTimer();
+        Notifications.requestPermissionsAsync().catch(() => {});
+    }, []);
+
+    useEffect(() => {
+        if (!TherapyTimer) {
+            return undefined;
+        }
+
+        const eventEmitter = new NativeEventEmitter(TherapyTimer);
+        const subscription = eventEmitter.addListener('TherapyTimerEvent', event => {
+            if (event?.event === 'timerCompleted') {
+                setIsTimerRunning(false);
+                setRemainingSeconds(0);
+                setTimer(0);
+                targetTimeRef.current = null;
+                lastRemainingSecondsRef.current = 0;
+                prevIsTimerRunningRef.current = false;
+                AsyncStorage.removeItem('therapy_timer_target').catch(() => {});
+                setMode('Off');
+
+                Alert.alert(
+                    "Time's Up!",
+                    "Your therapy session has finished.",
+                    [
+                        {
+                            text: 'Stop Alarm',
+                            onPress: () => {
+                                TherapyTimer.stopAlarm?.().catch(() => {});
+                            }
+                        }
+                    ],
+                    { cancelable: false }
+                );
             }
         });
+
         return () => subscription.remove();
     }, []);
 
@@ -149,17 +148,33 @@ const DashboardScreen = ({ navigation, route }) => {
     useEffect(() => {
         const restoreSession = async () => {
             try {
+                // Prefer native module as the authoritative source of truth
+                if (TherapyTimer) {
+                    const active = await TherapyTimer.isTimerActive();
+                    if (active) {
+                        const rem = await TherapyTimer.getRemainingSeconds();
+                        const targetMs = Date.now() + rem * 1000;
+                        targetTimeRef.current = targetMs;
+                        lastRemainingSecondsRef.current = rem;
+                        setRemainingSeconds(rem);
+                        setIsTimerRunning(true);
+                        prevIsTimerRunningRef.current = true;
+                        return; // Native is authoritative, skip AsyncStorage
+                    }
+                }
+                // Fallback: AsyncStorage (for cases where service already stopped but time remains)
                 const targetStr = await AsyncStorage.getItem('therapy_timer_target');
                 if (targetStr) {
                     const target = parseInt(targetStr, 10);
                     const now = Date.now();
                     if (target > now) {
-                        // Resume local timer representation
                         const remaining = Math.round((target - now) / 1000);
                         setRemainingSeconds(remaining);
+                        targetTimeRef.current = target;
+                        lastRemainingSecondsRef.current = remaining;
                         setIsTimerRunning(true);
+                        prevIsTimerRunningRef.current = true;
                     } else {
-                        // Clean up old state
                         await AsyncStorage.removeItem('therapy_timer_target');
                     }
                 }
@@ -168,13 +183,47 @@ const DashboardScreen = ({ navigation, route }) => {
         restoreSession();
     }, []);
 
+    // Handle App returning from background — sync JS UI with native service state
     useEffect(() => {
-        if (route?.params?.autoConnect) {
+        const subscription = AppState.addEventListener('change', async nextAppState => {
+            if (nextAppState === 'active') {
+                // Re-sync from native service (non-blocking, only on app resume)
+                if (TherapyTimer) {
+                    TherapyTimer.isTimerActive()
+                        .then(active => {
+                            if (active) {
+                                return TherapyTimer.getRemainingSeconds().then(rem => {
+                                    // Re-anchor the local ref so JS countdown stays accurate
+                                    targetTimeRef.current = Date.now() + rem * 1000;
+                                    setRemainingSeconds(rem);
+                                    setIsTimerRunning(true);
+                                    prevIsTimerRunningRef.current = true;
+                                });
+                            } else if (isTimerRunning) {
+                                // Timer finished while in background
+                                setIsTimerRunning(false);
+                                setRemainingSeconds(0);
+                                targetTimeRef.current = null;
+                                prevIsTimerRunningRef.current = false;
+                                AsyncStorage.removeItem('therapy_timer_target').catch(() => {});
+                                setMode('Off');
+                            }
+                        })
+                        .catch(() => {});
+                }
+            }
+        });
+
+        return () => { subscription.remove(); };
+    }, [isTimerRunning, temp]);
+
+    useEffect(() => {
+        if (route?.params?.autoConnect && !safeResume) {
             setScanModalVisible(true);
             handleBluetoothScan();
             navigation.setParams({ autoConnect: undefined });
         }
-    }, [route?.params?.autoConnect]);
+    }, [navigation, route?.params?.autoConnect, safeResume]);
 
     useEffect(() => {
         if (!isConnected) return;
@@ -216,6 +265,18 @@ const DashboardScreen = ({ navigation, route }) => {
                     if (prevTemp !== newTemp) return newTemp;
                     return prevTemp;
                 });
+                
+                // Extremely reliable background timer trick: 
+                // Any time the ESP32 sends a temperature update (often), we use that hardware-triggered 
+                // wake-up to also recalculate and pump our JS timer, preventing it from pausing when backgrounded.
+                if (prevIsTimerRunningRef.current && targetTimeRef.current) {
+                    const now = Date.now();
+                    const rem = Math.round((targetTimeRef.current - now) / 1000);
+                    if (rem >= 0 && rem !== lastRemainingSecondsRef.current) {
+                        lastRemainingSecondsRef.current = rem;
+                        setRemainingSeconds(rem);
+                    }
+                }
             },
             (newTimerSeconds) => {
                 lastHeartbeat = Date.now();
@@ -226,7 +287,16 @@ const DashboardScreen = ({ navigation, route }) => {
                 if (newTimerSeconds > 0) {
                     // Do not let the hardware's imprecise (rounded to minute) backup timer 
                     // overwrite the app's ultra-precise seconds timer while it's ticking.
-                    if (prevIsTimerRunningRef.current) return;
+                    if (prevIsTimerRunningRef.current) {
+                        if (targetTimeRef.current) {
+                            const now = Date.now();
+                            const rem = Math.round((targetTimeRef.current - now) / 1000);
+                            if (rem > 0) {
+                                setRemainingSeconds(rem);
+                            }
+                        }
+                        return;
+                    }
 
                     setRemainingSeconds(newTimerSeconds);
                     setIsTimerRunning(true);
@@ -246,9 +316,6 @@ const DashboardScreen = ({ navigation, route }) => {
                 }
             }
         );
-
-        setupNotifications();
-
         // Listen for disconnect
         onDeviceDisconnect(() => {
             setIsConnected(false);
@@ -333,17 +400,10 @@ const DashboardScreen = ({ navigation, route }) => {
         sendCommandToDevice(mode, temp, -1); 
     }, [mode, temp]);
 
-    useEffect(() => {
-        // Only send timer command when state changes (start/stop)
-        if (isTimerRunning !== prevIsTimerRunningRef.current) {
-            if (isTimerRunning) {
-                sendCommandToDevice(mode, temp, remainingSeconds);
-            } else {
-                sendCommandToDevice(mode, temp, 0);
-            }
-            prevIsTimerRunningRef.current = isTimerRunning;
-        }
-    }, [isTimerRunning]);
+    // NOTE: We do NOT send BLE commands here on isTimerRunning change.
+    // handleTimerSet and stopTimer each send their own correct command directly.
+    // Sending here causes a race: remainingSeconds is still 0 (stale) when isTimerRunning
+    // flips to true, which tells the ESP32 to stop — turning off its display.
 
     useEffect(() => {
         if (!isTimerRunning) {
@@ -354,44 +414,27 @@ const DashboardScreen = ({ navigation, route }) => {
             return;
         }
 
-        if (remainingSeconds <= 0) {
-            setIsTimerRunning(false);
-            return;
-        }
-
         if (timerIntervalRef.current) {
             clearInterval(timerIntervalRef.current);
         }
 
+        // Pure JS local countdown using targetTimeRef — NO async native calls here.
+        // This avoids blocking the JS thread (and BLE callbacks) with Promises every tick.
         timerIntervalRef.current = setInterval(() => {
-            setRemainingSeconds((prev) => {
-                if (prev <= 1) {
-                    if (timerIntervalRef.current) {
-                        clearInterval(timerIntervalRef.current);
-                        timerIntervalRef.current = null;
-                    }
-                    setIsTimerRunning(false);
-                    AsyncStorage.removeItem('therapy_timer_target').catch(() => {});
-                    // Final "Time Up" notification handled here
-                    Notifications.scheduleNotificationAsync({
-                        content: {
-                            title: 'Time\'s Up!',
-                            body: 'Timer Completed. Your therapy session has finished.',
-                            sound: false,
-                            priority: Notifications.AndroidNotificationPriority.MAX,
-                            vibrate: [0, 500, 200, 500, 200, 500],
-                            android: {
-                                channelId: 'therapy-timer-vibrate',
-                                sound: false,
-                            }
-                        },
-                        trigger: null, // show immediately
-                    });
-                    return 0;
+            if (!targetTimeRef.current) return;
+            const now = Date.now();
+            const remaining = Math.round((targetTimeRef.current - now) / 1000);
+
+            if (remaining <= 0) {
+                if (lastRemainingSecondsRef.current !== 0) {
+                    lastRemainingSecondsRef.current = 0;
+                    setRemainingSeconds(0);
                 }
-                return prev - 1;
-            });
-        }, 1000);
+            } else if (remaining !== lastRemainingSecondsRef.current) {
+                lastRemainingSecondsRef.current = remaining;
+                setRemainingSeconds(remaining);
+            }
+        }, 500); // 500ms tick so we don't miss the exact second boundary
 
         return () => {
             if (timerIntervalRef.current) {
@@ -399,39 +442,7 @@ const DashboardScreen = ({ navigation, route }) => {
                 timerIntervalRef.current = null;
             }
         };
-    }, [isTimerRunning, remainingSeconds, isConnected]);
-
-    // Live Notification Update Effect
-    useEffect(() => {
-        if (isTimerRunning && remainingSeconds > 0) {
-            const updateNotification = async () => {
-                const h = Math.floor(remainingSeconds / 3600);
-                const m = Math.floor((remainingSeconds % 3600) / 60);
-                const s = remainingSeconds % 60;
-                const timeStr = `${h > 0 ? h + ':' : ''}${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
-
-                await Notifications.scheduleNotificationAsync({
-                    identifier: 'therapy-session-active',
-                    content: {
-                        title: 'Therapy Session Active',
-                        body: `Time remaining: ${timeStr}`,
-                        sticky: true,
-                        autoDismiss: false,
-                        categoryId: 'therapy_timer_controls',
-                        android: {
-                            channelId: 'therapy-timer-active', // Silent channel
-                            ongoing: true,
-                        }
-                    },
-                    trigger: null,
-                });
-            };
-
-            updateNotification();
-        } else {
-            Notifications.dismissNotificationAsync('therapy-session-active');
-        }
-    }, [isTimerRunning, remainingSeconds]); // Update every second!
+    }, [isTimerRunning]); // NOTE: removed remainingSeconds from deps — prevents interval churn
 
     const handleTimerSet = async (minutes) => {
         if (mode === 'Off') {
@@ -439,34 +450,31 @@ const DashboardScreen = ({ navigation, route }) => {
             return;
         }
         setTimer(minutes);
-        const total = Math.max(0, Math.round(minutes * 60));
-        setRemainingSeconds(total);
-        setIsTimerRunning(total > 0);
+        const totalSeconds = Math.max(0, Math.round(minutes * 60));
+
+        // Start native foreground service — pass SECONDS (not minutes)
+        // Native service uses: endTime = SystemClock.elapsedRealtime() + durationInMillis
+        if (totalSeconds > 0 && TherapyTimer) {
+            TherapyTimer.startTimer(totalSeconds).catch(e => console.warn('[Timer] startTimer error:', e));
+        }
+
+        // Anchor JS local countdown
+        const targetMs = Date.now() + totalSeconds * 1000;
+        targetTimeRef.current = targetMs;
+        lastRemainingSecondsRef.current = totalSeconds;
+        setRemainingSeconds(totalSeconds);
+        setIsTimerRunning(totalSeconds > 0);
+        prevIsTimerRunningRef.current = (totalSeconds > 0);
         ignoreDeviceUpdateUntilRef.current = Date.now() + cooldownDuration;
 
-        if (total > 0) {
-            // Persist the target so we survive app kills
-            await AsyncStorage.setItem('therapy_timer_target', (Date.now() + total * 1000).toString());
-
-            const { status } = await Notifications.requestPermissionsAsync();
-            if (status === 'granted') {
-                // Scheduled notification for the end
-                const id = await Notifications.scheduleNotificationAsync({
-                    content: {
-                        title: 'Time\'s Up!',
-                        body: 'Timer Completed. Your therapy session has finished.',
-                        sound: false,
-                        priority: Notifications.AndroidNotificationPriority.HIGH,
-                        vibrate: [0, 500, 200, 500, 200, 500],
-                        android: {
-                            channelId: 'therapy-timer-vibrate',
-                        }
-                    },
-                    trigger: { seconds: total },
-                });
-                notificationIdRef.current = id;
-            }
+        // Persist so session survives app kill
+        if (totalSeconds > 0) {
+            AsyncStorage.setItem('therapy_timer_target', targetMs.toString()).catch(() => {});
         }
+
+        // Inform hardware — MUST send SECONDS (ESP32 expects seconds, e.g. 120 not 2).
+        // Sending minutes meant "2 seconds" to hardware, causing instant shutdown.
+        sendCommandToDevice(mode, temp, totalSeconds);
     };
 
     useEffect(() => {
@@ -477,15 +485,15 @@ const DashboardScreen = ({ navigation, route }) => {
 
     const stopTimer = () => {
         setIsTimerRunning(false);
+        prevIsTimerRunningRef.current = false;
         setRemainingSeconds(0);
+        targetTimeRef.current = null;
         ignoreDeviceUpdateUntilRef.current = Date.now() + cooldownDuration;
         AsyncStorage.removeItem('therapy_timer_target').catch(() => {});
         
-        if (notificationIdRef.current) {
-            Notifications.cancelScheduledNotificationAsync(notificationIdRef.current);
-            notificationIdRef.current = null;
+        if (TherapyTimer) {
+            TherapyTimer.stopTimer();
         }
-        Notifications.dismissNotificationAsync('therapy-session-active');
         
         // Also inform the hardware to stop the timer
         sendCommandToDevice(mode, temp, 0); 
@@ -573,9 +581,23 @@ const DashboardScreen = ({ navigation, route }) => {
         setTemp(preset.temp);
         if (preset.timer > 0 && preset.mode !== 'Off') {
             setTimer(preset.timer);
-            const total = Math.max(0, Math.round(preset.timer * 60));
-            setRemainingSeconds(total);
-            setIsTimerRunning(total > 0);
+            const totalSeconds = Math.max(0, Math.round(preset.timer * 60));
+            
+            // Start native service with SECONDS (not minutes)
+            if (totalSeconds > 0 && TherapyTimer) {
+                TherapyTimer.startTimer(totalSeconds).catch(e => console.warn('[Timer] startTimer error:', e));
+            }
+            
+            const targetMs = Date.now() + totalSeconds * 1000;
+            targetTimeRef.current = targetMs;
+            lastRemainingSecondsRef.current = totalSeconds;
+            AsyncStorage.setItem('therapy_timer_target', targetMs.toString()).catch(() => {});
+            setRemainingSeconds(totalSeconds);
+            setIsTimerRunning(totalSeconds > 0);
+            prevIsTimerRunningRef.current = (totalSeconds > 0);
+            
+            // Inform hardware of preset timer (in SECONDS)
+            sendCommandToDevice(preset.mode, preset.temp, totalSeconds);
         } else {
             setTimer(preset.timer);
             setRemainingSeconds(0);
@@ -961,7 +983,7 @@ const DashboardScreen = ({ navigation, route }) => {
                     <View style={[styles.modalContent, { alignItems: 'center', paddingVertical: 40 }]}>
                         <ActivityIndicator size="large" color={COLORS.primary} />
                         <Text style={[styles.modalTitle, { marginTop: 20 }]}>Scanning...</Text>
-                        <Text style={styles.modalSubtitle}>Searching for TherapyBand</Text>
+                        <Text style={styles.modalSubtitle}>Press any button on your band to wake it up!</Text>
                         <TouchableOpacity 
                             style={[styles.saveBtn, { marginTop: 20, backgroundColor: 'rgba(255,255,255,0.1)' }]}
                             onPress={() => setScanModalVisible(false)}
@@ -1063,15 +1085,15 @@ const styles = StyleSheet.create({
         gap: 12,
     },
     offBadge: {
-        paddingHorizontal: 16,
-        paddingVertical: 6,
+        paddingHorizontal: 18,
+        paddingVertical: 10,
         backgroundColor: 'rgba(239, 68, 68, 0.1)',
         borderRadius: 20,
         borderWidth: 1,
         borderColor: 'rgba(239, 68, 68, 0.2)',
     },
     offBadgeText: { 
-        fontSize: 10, 
+        fontSize: 13, 
         fontWeight: 'bold', 
         color: '#f87171',
         textTransform: 'uppercase', 
@@ -1080,20 +1102,20 @@ const styles = StyleSheet.create({
     connectionBadge: {
         flexDirection: 'row',
         alignItems: 'center',
-        paddingHorizontal: 10,
-        paddingVertical: 6,
+        paddingHorizontal: 18,
+        paddingVertical: 10,
         borderRadius: 20,
         backgroundColor: 'rgba(255,255,255,0.05)',
         borderWidth: 1,
     },
     connectionDot: {
-        width: 6,
-        height: 6,
-        borderRadius: 3,
-        marginRight: 6,
+        width: 8,
+        height: 8,
+        borderRadius: 4,
+        marginRight: 8,
     },
     connectionText: {
-        fontSize: 9,
+        fontSize: 12,
         fontWeight: 'bold',
         textTransform: 'uppercase',
         letterSpacing: 1.5,
@@ -1111,15 +1133,15 @@ const styles = StyleSheet.create({
     modePill: {
         flexDirection: 'row',
         backgroundColor: 'rgba(255,255,255,0.05)',
-        padding: 4,
-        borderRadius: 30,
+        padding: 8,
+        borderRadius: 34,
         borderWidth: 1,
         borderColor: 'rgba(255,255,255,0.1)',
-        width: 180,
+        width: 250,
     },
     modeTab: {
         flex: 1,
-        paddingVertical: 10,
+        paddingVertical: 14,
         alignItems: 'center',
         justifyContent: 'center',
         borderRadius: 30,
@@ -1141,17 +1163,17 @@ const styles = StyleSheet.create({
         elevation: 4,
     },
     modeTabText: {
-        fontSize: 10,
+        fontSize: 15,
         fontWeight: 'bold',
         textTransform: 'uppercase',
-        letterSpacing: 1.5,
+        letterSpacing: 2,
         color: 'rgba(255,255,255,0.4)',
     },
     modeTabTextActive: {
-        fontSize: 10,
+        fontSize: 15,
         fontWeight: 'bold',
         textTransform: 'uppercase',
-        letterSpacing: 1.5,
+        letterSpacing: 2,
         color: 'white',
     },
     dialWrapper: {
@@ -1172,23 +1194,23 @@ const styles = StyleSheet.create({
     presetChip: {
         flexDirection: 'row',
         alignItems: 'center',
-        paddingVertical: 10,
-        paddingHorizontal: 12,
+        paddingVertical: 14,
+        paddingHorizontal: 16,
         borderRadius: 999,
         backgroundColor: 'rgba(255,255,255,0.06)',
         borderWidth: 1,
-        maxWidth: 160,
+        maxWidth: 180,
     },
     presetChipDot: {
-        width: 8,
-        height: 8,
-        borderRadius: 4,
-        marginRight: 8,
+        width: 10,
+        height: 10,
+        borderRadius: 5,
+        marginRight: 10,
     },
     presetChipText: {
         color: 'rgba(255,255,255,0.9)',
         fontWeight: '700',
-        fontSize: 12,
+        fontSize: 14,
         letterSpacing: 0.5,
     },
     loadingContainer: { 
@@ -1199,9 +1221,10 @@ const styles = StyleSheet.create({
     bottomSection: {
         width: '100%',
         paddingBottom: 20,
+        alignItems: 'center',
     },
     customPresetBtn: {
-        width: '100%',
+        width: 250,
         paddingVertical: 20,
         borderRadius: 16,
         alignItems: 'center',

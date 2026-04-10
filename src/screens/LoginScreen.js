@@ -67,7 +67,7 @@ const LoginScreen = ({ navigation }) => {
                             resizeMode="contain"
                         />
                         <Text style={styles.title}>Alien HealthCare</Text>
-                        <Text style={styles.subtitle}>Sign in with your mobile number</Text>
+                        <Text style={styles.subtitle}>Sign up or Log in with your mobile number</Text>
                     </View>
 
                     <View style={styles.form}>

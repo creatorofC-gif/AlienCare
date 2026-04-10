@@ -5,19 +5,19 @@ import { startHot, startCool, stopTherapy } from '../../BLE_connection/TherapyBl
  * 
  * @param {string} mode - 'Hot', 'Cold', or 'Off'
  * @param {number} temperature - The target temperature in Celsius
- * @param {number} timerMinutes - The timer duration in minutes
+ * @param {number} timerSeconds - The timer duration in seconds
  */
-export const sendCommandToDevice = (mode, temperature, timerMinutes) => {
+export const sendCommandToDevice = (mode, temperature, timerSeconds) => {
     console.log(`[Bluetooth] Sending command:`, {
         mode,
         temperature: mode === 'Off' ? 'N/A' : `${temperature}°C`,
-        timer: `${timerMinutes} min`
+        timer: `${timerSeconds} s`
     });
 
     if (mode === 'Hot') {
-        startHot(temperature, timerMinutes);
+        startHot(temperature, timerSeconds);
     } else if (mode === 'Cold') {
-        startCool(temperature, timerMinutes);
+        startCool(temperature, timerSeconds);
     } else if (mode === 'Off') {
         stopTherapy();
     }

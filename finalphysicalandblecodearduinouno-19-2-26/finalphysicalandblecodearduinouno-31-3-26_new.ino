@@ -3,40 +3,40 @@
 #include <BLEServer.h>
 #include <BLEUtils.h>
 #include <TM1637Display.h>
+#include <esp_sleep.h>
 
-/* ================= AUTO BLE CONFIG ================= */
-#define BLE_IDLE_TIMEOUT_MS (3UL * 60UL * 1000UL)
+/* ================= AUTO SLEEP CONFIG ================= */
+#define IDLE_SLEEP_TIMEOUT_MS (3UL * 60UL * 1000UL)
 
 /* ================= PIN MAP ================= */
-#define BTN_MODE 32
-#define BTN_UP 33
-#define BTN_DOWN 25
-#define BTN_TIMER 26
+#define BTN_MODE 19
+#define BTN_UP 18
+#define BTN_DOWN 5
+#define BTN_TIMER 17
 
-#define MOSFET_HEAT 27
-#define MOSFET_COOL 14
+#define MOSFET_HEAT 4
+#define MOSFET_COOL 16
 #define NTC_PIN 34
 
-#define CLK 18
-#define DIO 19
+#define CLK 33
+#define DIO 32
 
 TM1637Display display(CLK, DIO);
 
 /* ================= BLE UUIDS ================= */
 #define BLE_SERVICE_UUID "a0000001-0000-0000-0000-000000000001"
-#define TEMP_UUID "a0000002-0000-0000-0000-000000000002"
-#define MODE_UUID "a0000003-0000-0000-0000-000000000003"
-#define SET_UUID "a0000004-0000-0000-0000-000000000004"
-#define TIMER_UUID "a0000005-0000-0000-0000-000000000005"
+#define TEMP_UUID        "a0000002-0000-0000-0000-000000000002"
+#define MODE_UUID        "a0000003-0000-0000-0000-000000000003"
+#define SET_UUID         "a0000004-0000-0000-0000-000000000004"
+#define TIMER_UUID       "a0000005-0000-0000-0000-000000000005"
+
 /* ================= GLYPHS ================= */
 const uint8_t GLYPH_H = 0b01110110;
-
 const uint8_t GLYPH_C = 0b00111001;
 const uint8_t GLYPH_O = 0b00111111;
 const uint8_t GLYPH_L = 0b00111000;
-
 const uint8_t GLYPH_F = 0b01110001;
-const uint8_t DASH = 0b01000000;
+const uint8_t DASH    = 0b01000000;
 
 /* ================= MODES ================= */
 enum Mode { OFF_MODE, HEAT_MODE, COOL_MODE };
@@ -96,7 +96,6 @@ const float T_NOM = 25.0;
 /* ================= STATE ================= */
 float filteredTemp = 0;
 bool tempInit = false;
-float displayTemp = -100;
 
 bool heaterOn = false;
 bool coolerOn = false;
@@ -121,16 +120,16 @@ bool lastTimerBtn = HIGH;
 unsigned long timerPressStart = 0;
 
 /* ================= BLE STATE ================= */
-bool bleEnabled = true;
+bool bleEnabled = false;
 bool bleConnected = false;
 unsigned long lastUserActivityMs = 0;
 
 /* ================= BLE OBJECTS ================= */
-BLEServer *bleServer;
-BLECharacteristic *tempChar;
-BLECharacteristic *modeChar;
-BLECharacteristic *setChar;
-BLECharacteristic *timerChar;
+BLEServer *bleServer = nullptr;
+BLECharacteristic *tempChar = nullptr;
+BLECharacteristic *modeChar = nullptr;
+BLECharacteristic *setChar = nullptr;
+BLECharacteristic *timerChar = nullptr;
 
 /* ================= BLE RATE LIMIT ================= */
 unsigned long lastBleTempNotify = 0;
@@ -141,6 +140,8 @@ int lastBleSetpoint = -1;
 /* ================= TEMP READ ================= */
 float readTemp() {
   int adc = analogRead(NTC_PIN);
+  if (adc <= 0) adc = 1;
+  if (adc >= 4095) adc = 4094;
   float r = R_FIXED * ((float)adc / (4095 - adc));
   return 1.0 / ((log(r / R_NOM) / BETA) + (1.0 / (T_NOM + 273.15))) - 273.15;
 }
@@ -149,14 +150,13 @@ float readTemp() {
 class ModeCB : public BLECharacteristicCallbacks {
   void onWrite(BLECharacteristic *c) {
     String v = c->getValue().c_str();
-    if (v == "OFF")
-      mode = OFF_MODE;
-    else if (v == "HEAT")
-      mode = HEAT_MODE;
-    else if (v == "COOL")
-      mode = COOL_MODE;
-    if (mode == OFF_MODE)
-      offStartMs = millis();
+    if (v == "OFF") mode = OFF_MODE;
+    else if (v == "HEAT") mode = HEAT_MODE;
+    else if (v == "COOL") mode = COOL_MODE;
+
+    lastUserActivityMs = millis();
+
+    if (mode == OFF_MODE) offStartMs = millis();
   }
 };
 
@@ -168,6 +168,7 @@ class SetCB : public BLECharacteristicCallbacks {
       showSetpoint = true;
       setpointUntil = millis() + SETPOINT_PREVIEW_MS;
       heatStandbyUntil = millis() + HEAT_STANDBY_MS;
+      lastUserActivityMs = millis();
     }
   }
 };
@@ -175,10 +176,12 @@ class SetCB : public BLECharacteristicCallbacks {
 class TimerCB : public BLECharacteristicCallbacks {
   void onWrite(BLECharacteristic *c) {
     int secs = atoi(c->getValue().c_str());
+    lastUserActivityMs = millis();
+
     if (secs <= 0) {
       timerState = TIMER_IDLE;
       timerMs = 0;
-      showTimerDisplay = false; // hide timer instead of blinking 0
+      showTimerDisplay = false;
     } else {
       timerMs = (unsigned long)secs * 1000UL;
       timerStartMs = millis();
@@ -190,28 +193,22 @@ class TimerCB : public BLECharacteristicCallbacks {
 };
 
 class ServerCB : public BLEServerCallbacks {
-  void onConnect(BLEServer *) { bleConnected = true; }
+  void onConnect(BLEServer *) {
+    bleConnected = true;
+    lastUserActivityMs = millis();
+  }
+
   void onDisconnect(BLEServer *) {
     bleConnected = false;
-    if (bleEnabled)
-      BLEDevice::getAdvertising()->start();
+    if (bleEnabled) {
+      BLEDevice::startAdvertising();
+    }
   }
 };
 
-/* ================= SETUP ================= */
-void setup() {
-  pinMode(BTN_MODE, INPUT_PULLUP);
-  pinMode(BTN_UP, INPUT_PULLUP);
-  pinMode(BTN_DOWN, INPUT_PULLUP);
-  pinMode(BTN_TIMER, INPUT_PULLUP);
-
-  pinMode(MOSFET_HEAT, OUTPUT);
-  pinMode(MOSFET_COOL, OUTPUT);
-
-  display.setBrightness(6);
-  display.clear();
-  offStartMs = millis();
-  lastUserActivityMs = millis();
+/* ================= BLE HELPERS ================= */
+void initBLE() {
+  if (bleEnabled) return;
 
   BLEDevice::init("TherapyBand");
   bleServer = BLEDevice::createServer();
@@ -225,23 +222,26 @@ void setup() {
   tempChar->addDescriptor(new BLE2902());
 
   modeChar = service->createCharacteristic(
-      MODE_UUID, BLECharacteristic::PROPERTY_READ |
-                     BLECharacteristic::PROPERTY_WRITE |
-                     BLECharacteristic::PROPERTY_NOTIFY);
+      MODE_UUID,
+      BLECharacteristic::PROPERTY_READ |
+      BLECharacteristic::PROPERTY_WRITE |
+      BLECharacteristic::PROPERTY_NOTIFY);
   modeChar->addDescriptor(new BLE2902());
   modeChar->setCallbacks(new ModeCB());
 
   setChar = service->createCharacteristic(
-      SET_UUID, BLECharacteristic::PROPERTY_READ |
-                    BLECharacteristic::PROPERTY_WRITE |
-                    BLECharacteristic::PROPERTY_NOTIFY);
+      SET_UUID,
+      BLECharacteristic::PROPERTY_READ |
+      BLECharacteristic::PROPERTY_WRITE |
+      BLECharacteristic::PROPERTY_NOTIFY);
   setChar->addDescriptor(new BLE2902());
   setChar->setCallbacks(new SetCB());
 
   timerChar = service->createCharacteristic(
-      TIMER_UUID, BLECharacteristic::PROPERTY_READ |
-                      BLECharacteristic::PROPERTY_WRITE |
-                      BLECharacteristic::PROPERTY_NOTIFY);
+      TIMER_UUID,
+      BLECharacteristic::PROPERTY_READ |
+      BLECharacteristic::PROPERTY_WRITE |
+      BLECharacteristic::PROPERTY_NOTIFY);
   timerChar->addDescriptor(new BLE2902());
   timerChar->setCallbacks(new TimerCB());
 
@@ -252,7 +252,80 @@ void setup() {
   advertising->setScanResponse(true);
   advertising->setMinPreferred(0x06);
   advertising->setMinPreferred(0x12);
+
   BLEDevice::startAdvertising();
+
+  bleEnabled = true;
+  bleConnected = false;
+  lastBleTempNotify = 0;
+  lastBleTimerNotify = 0;
+  lastBleMode = OFF_MODE;
+  lastBleSetpoint = -1;
+}
+
+void stopBLE() {
+  if (!bleEnabled) return;
+
+  BLEDevice::stopAdvertising();
+  delay(50);
+  BLEDevice::deinit(true);
+
+  bleServer = nullptr;
+  tempChar = nullptr;
+  modeChar = nullptr;
+  setChar = nullptr;
+  timerChar = nullptr;
+
+  bleEnabled = false;
+  bleConnected = false;
+}
+
+/* ================= SLEEP HELPERS ================= */
+void setupWakeSources() {
+  gpio_wakeup_enable((gpio_num_t)BTN_MODE, GPIO_INTR_LOW_LEVEL);
+  gpio_wakeup_enable((gpio_num_t)BTN_UP, GPIO_INTR_LOW_LEVEL);
+  gpio_wakeup_enable((gpio_num_t)BTN_DOWN, GPIO_INTR_LOW_LEVEL);
+  gpio_wakeup_enable((gpio_num_t)BTN_TIMER, GPIO_INTR_LOW_LEVEL);
+  esp_sleep_enable_gpio_wakeup();
+}
+
+void enterLightSleep() {
+  digitalWrite(MOSFET_HEAT, LOW);
+  digitalWrite(MOSFET_COOL, LOW);
+  display.clear();
+
+  stopBLE();
+
+  delay(100);
+  esp_light_sleep_start();
+
+  // resumes here after wake
+  initBLE();
+  lastUserActivityMs = millis();
+  offStartMs = millis();
+}
+
+/* ================= SETUP ================= */
+void setup() {
+  pinMode(BTN_MODE, INPUT_PULLUP);
+  pinMode(BTN_UP, INPUT_PULLUP);
+  pinMode(BTN_DOWN, INPUT_PULLUP);
+  pinMode(BTN_TIMER, INPUT_PULLUP);
+
+  pinMode(MOSFET_HEAT, OUTPUT);
+  pinMode(MOSFET_COOL, OUTPUT);
+
+  digitalWrite(MOSFET_HEAT, LOW);
+  digitalWrite(MOSFET_COOL, LOW);
+
+  display.setBrightness(6);
+  display.clear();
+
+  setupWakeSources();
+  initBLE();
+
+  offStartMs = millis();
+  lastUserActivityMs = millis();
 }
 
 /* ================= LOOP ================= */
@@ -262,30 +335,31 @@ void loop() {
   if (!digitalRead(BTN_MODE) || !digitalRead(BTN_UP) ||
       !digitalRead(BTN_DOWN) || !digitalRead(BTN_TIMER)) {
     lastUserActivityMs = now;
+
     if (!bleEnabled) {
-      bleEnabled = true;
-      BLEDevice::getAdvertising()->start();
+      initBLE();
     }
   }
 
-  if (bleEnabled && mode == OFF_MODE && timerState == TIMER_IDLE &&
-      now - lastUserActivityMs > BLE_IDLE_TIMEOUT_MS) {
-    bleEnabled = false;
-    BLEDevice::getAdvertising()->stop();
+  // Auto light sleep only when fully idle and device is OFF
+  if (mode == OFF_MODE &&
+      timerState == TIMER_IDLE &&
+      now - lastUserActivityMs > IDLE_SLEEP_TIMEOUT_MS) {
+    enterLightSleep();
+    return;
   }
 
   bool m = digitalRead(BTN_MODE);
 
   if (lastModeBtn == HIGH && m == LOW) {
-
     mode = (Mode)((mode + 1) % 3);
 
     coolHold = false;
     showSetpoint = false;
     showTimerDisplay = false;
+    lastUserActivityMs = now;
 
-    if (mode == OFF_MODE)
-      offStartMs = now;
+    if (mode == OFF_MODE) offStartMs = now;
   }
 
   lastModeBtn = m;
@@ -299,31 +373,40 @@ void loop() {
 
   bool up = digitalRead(BTN_UP);
   bool down = digitalRead(BTN_DOWN);
+
   if (mode == HEAT_MODE) {
     if (lastUp == HIGH && up == LOW && setpoint < MAX_SET) {
       setpoint++;
       showSetpoint = true;
       setpointUntil = now + SETPOINT_PREVIEW_MS;
       heatStandbyUntil = now + HEAT_STANDBY_MS;
+      lastUserActivityMs = now;
     }
+
     if (lastDown == HIGH && down == LOW && setpoint > MIN_SET) {
       setpoint--;
       showSetpoint = true;
       setpointUntil = now + SETPOINT_PREVIEW_MS;
       heatStandbyUntil = now + HEAT_STANDBY_MS;
+      lastUserActivityMs = now;
     }
   }
+
   lastUp = up;
   lastDown = down;
-  if (now > setpointUntil)
-    showSetpoint = false;
+
+  if (now > setpointUntil) showSetpoint = false;
 
   bool t = digitalRead(BTN_TIMER);
-  if (lastTimerBtn == HIGH && t == LOW)
+
+  if (lastTimerBtn == HIGH && t == LOW) {
     timerPressStart = now;
+  }
 
   if (lastTimerBtn == LOW && t == HIGH) {
     unsigned long dur = now - timerPressStart;
+    lastUserActivityMs = now;
+
     if (dur >= LONGPRESS_MS) {
       timerState = TIMER_IDLE;
       timerMs = 0;
@@ -338,20 +421,23 @@ void loop() {
       } else if (timerState == TIMER_SETTING) {
         timerMs += TIMER_STEP_MS;
       }
+
       showTimerDisplay = true;
       timerDisplayUntil = now + TIMER_PREVIEW_MS;
       lastTimerAction = now;
       lastTimerStepMs = now;
     }
   }
+
   lastTimerBtn = t;
 
   if (timerState == TIMER_SETTING && now - lastTimerAction > TIMER_PREVIEW_MS) {
     if (timerMs > 0) {
       timerState = TIMER_RUNNING;
       timerStartMs = now;
-    } else
+    } else {
       timerState = TIMER_IDLE;
+    }
   }
 
   if (timerState == TIMER_RUNNING && now - timerStartMs >= timerMs) {
@@ -361,9 +447,10 @@ void loop() {
     offStartMs = now;
   }
 
-  heaterOn = (mode == HEAT_MODE && filteredTemp < MAX_SAFE_TEMP &&
+  heaterOn = (mode == HEAT_MODE &&
+              filteredTemp < MAX_SAFE_TEMP &&
               now >= heatStandbyUntil &&
-              abs(filteredTemp - setpoint) > HEAT_IDLE_BAND &&
+              fabs(filteredTemp - setpoint) > HEAT_IDLE_BAND &&
               filteredTemp <= setpoint - HYST);
 
   coolerOn = false;
@@ -375,24 +462,25 @@ void loop() {
         coolToggleStart = now;
       }
     } else {
-      if (filteredTemp > setpoint + HOLD_HYST)
+      if (filteredTemp > setpoint + HOLD_HYST) {
         coolerOn = true;
-      else
+      } else {
         coolerOn = ((now - coolToggleStart) % 3000) < 1000;
+      }
     }
   }
 
   digitalWrite(MOSFET_HEAT, heaterOn);
   digitalWrite(MOSFET_COOL, coolerOn);
 
-  if (now > timerDisplayUntil)
-    showTimerDisplay = false;
+  if (now > timerDisplayUntil) showTimerDisplay = false;
+
   if (now - lastDisplayUpdate >= DISPLAY_MS) {
     lastDisplayUpdate = now;
     updateDisplay(now);
   }
 
-  if (now - lastBleTempNotify >= 500) {
+  if (bleEnabled && tempChar && now - lastBleTempNotify >= 500) {
     char b[8];
     dtostrf(filteredTemp, 4, 1, b);
     tempChar->setValue(b);
@@ -400,33 +488,31 @@ void loop() {
     lastBleTempNotify = now;
   }
 
-  if (mode != lastBleMode) {
-    modeChar->setValue(mode == OFF_MODE    ? "OFF"
-                       : mode == HEAT_MODE ? "HEAT"
-                                           : "COOL");
+  if (bleEnabled && modeChar && mode != lastBleMode) {
+    modeChar->setValue(mode == OFF_MODE ? "OFF" : mode == HEAT_MODE ? "HEAT" : "COOL");
     modeChar->notify();
     lastBleMode = mode;
   }
 
-  if (setpoint != lastBleSetpoint) {
+  if (bleEnabled && setChar && setpoint != lastBleSetpoint) {
     setChar->setValue(String(setpoint).c_str());
     setChar->notify();
     lastBleSetpoint = setpoint;
   }
 
-  if (now - lastBleTimerNotify >= 1000) {
+  if (bleEnabled && timerChar && now - lastBleTimerNotify >= 1000) {
     if (timerState == TIMER_RUNNING) {
       unsigned long rem = timerMs - (now - timerStartMs);
       timerChar->setValue(String(max(0, (int)(rem / 1000))).c_str());
-    } else
+    } else {
       timerChar->setValue("0");
+    }
     timerChar->notify();
     lastBleTimerNotify = now;
   }
 }
 
 void updateDisplay(unsigned long now) {
-
   /* ---------- CANCEL BLINK ---------- */
   if (cancelBlink) {
     if (now >= cancelBlinkUntil) {
@@ -448,8 +534,7 @@ void updateDisplay(unsigned long now) {
                             ? timerMs - (now - timerStartMs)
                             : timerMs;
 
-    if ((long)rem < 0)
-      rem = 0;
+    if ((long)rem < 0) rem = 0;
 
     int mm = rem / 60000;
     int ss = (rem / 1000) % 60;
@@ -476,9 +561,8 @@ void updateDisplay(unsigned long now) {
     return;
   }
 
-  /* ---------- HEAT MODE (H-XX ONLY) ---------- */
+  /* ---------- HEAT MODE ---------- */
   if (mode == HEAT_MODE) {
-
     int v = setpoint;
 
     uint8_t s[4];

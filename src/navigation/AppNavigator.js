@@ -12,7 +12,7 @@ import ProfileScreen from '../screens/ProfileScreen';
 
 const Stack = createStackNavigator();
 
-const AppNavigator = () => {
+const AppNavigator = ({ safeResume = false }) => {
     return (
         <NavigationContainer>
             <Stack.Navigator
@@ -21,7 +21,7 @@ const AppNavigator = () => {
                     headerShown: false,
                 }}
             >
-                <Stack.Screen name="Logo" component={LogoScreen} />
+                <Stack.Screen name="Logo" component={LogoScreen} initialParams={{ safeResume }} />
                 <Stack.Screen name="Login" component={LoginScreen} />
                 <Stack.Screen name="Signup" component={LoginScreen} />
                 <Stack.Screen name="Verification" component={VerificationScreen} />

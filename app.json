@@ -20,7 +20,12 @@
         "backgroundColor": "#ffffff"
       },
       "edgeToEdgeEnabled": true,
-      "package": "com.alienhealthcare"
+      "package": "com.alienhealthcare",
+      "permissions": [
+        "android.permission.BLUETOOTH",
+        "android.permission.BLUETOOTH_ADMIN",
+        "android.permission.BLUETOOTH_CONNECT"
+      ]
     },
     "scheme": "com.alienhealthcare",
     "notification": {
@@ -42,6 +47,11 @@
           "bluetoothAlwaysPermission": "Allow $(PRODUCT_NAME) to connect to bluetooth devices"
         }
       ]
-    ]
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "81ea3ba7-e58e-4a5d-9891-9803310a39d6"
+      }
+    }
   }
 }

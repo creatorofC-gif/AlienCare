@@ -1,12 +1,13 @@
 import React, { useRef, useEffect } from 'react';
-import { StyleSheet, View, PanResponder, Dimensions, Animated, Text, TouchableOpacity } from 'react-native';
+import { StyleSheet, View, PanResponder, Dimensions, Animated, Text, TouchableOpacity, Vibration, NativeModules } from 'react-native';
+const { TherapyTimer } = NativeModules;
 import Svg, { Path, Circle, G, Defs, LinearGradient, Stop } from 'react-native-svg';
 import { COLORS } from '../constants/theme';
 import { Snowflake } from 'lucide-react-native';
 
 const { width } = Dimensions.get('window');
-const DIAL_SIZE = width * 0.72; // Adjusted to match design scale (w-72)
-const STROKE_WIDTH = 30; // slightly thicker for conic feeling
+const DIAL_SIZE = width * 0.85; // Adjusted dial size (was 0.72)
+const STROKE_WIDTH = 36; // slightly thicker for conic feeling (was 30)
 const RADIUS = (DIAL_SIZE - STROKE_WIDTH) / 2;
 const CENTER = DIAL_SIZE / 2;
 const INNER_RADIUS = RADIUS - STROKE_WIDTH / 2 - 10;
@@ -26,6 +27,16 @@ const TemperatureDial = ({
 }) => {
     const animatedAngle = useRef(new Animated.Value(0)).current;
     const scaleAnim = useRef(new Animated.Value(1)).current;
+    const lastValRef = useRef(value);
+
+    const triggerDialHapticTick = () => {
+        if (TherapyTimer && typeof TherapyTimer.triggerHapticTick === 'function') {
+            TherapyTimer.triggerHapticTick();
+            return;
+        }
+
+        Vibration.vibrate(10);
+    };
 
     useEffect(() => {
         const range = max - min;
@@ -130,6 +141,11 @@ const TemperatureDial = ({
                 if (newValue < currentMin) newValue = currentMin;
                 if (newValue > currentMax) newValue = currentMax;
 
+                if (newValue !== lastValRef.current) {
+                    triggerDialHapticTick();
+                    lastValRef.current = newValue;
+                }
+
                 if (onValChange) onValChange(newValue);
             },
             onPanResponderRelease: () => {
@@ -220,7 +236,7 @@ const TemperatureDial = ({
                             <Circle
                                 cx={x}
                                 cy={y}
-                                r={12}
+                                r={16}
                                 fill={colors.primary}
                                 opacity={0.6}
                             />
@@ -228,7 +244,7 @@ const TemperatureDial = ({
                             <Circle
                                 cx={x}
                                 cy={y}
-                                r={10}
+                                r={14}
                                 fill="#FFFFFF"
                                 stroke="rgba(255,255,255,0.4)"
                                 strokeWidth={2}

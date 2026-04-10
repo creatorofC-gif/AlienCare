@@ -4,8 +4,9 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import GradientBackground from '../components/GradientBackground';
 import { COLORS, FONTS } from '../constants/theme';
 
-const LogoScreen = ({ navigation }) => {
+const LogoScreen = ({ navigation, route }) => {
     const fadeAnim = React.useRef(new Animated.Value(0)).current;
+    const safeResume = route?.params?.safeResume === true;
 
     useEffect(() => {
         Animated.timing(fadeAnim, {
@@ -16,16 +17,27 @@ const LogoScreen = ({ navigation }) => {
 
         const checkLoginStatus = async () => {
             try {
-                // One-time clear to force the new Name + OTP flow for testing
-                const hasSeenNewSetup = await AsyncStorage.getItem('hasSeenNewSetup_v2');
+                const hasSeenNewSetup = await AsyncStorage.getItem('hasSeenNewSetup_v4');
                 if (!hasSeenNewSetup) {
                     await AsyncStorage.multiRemove(['isLoggedIn', 'username', 'hasSeenBluetoothOnLaunch']);
-                    await AsyncStorage.setItem('hasSeenNewSetup_v2', 'true');
+                    await AsyncStorage.setItem('hasSeenNewSetup_v4', 'true');
                 }
 
                 const isLoggedIn = await AsyncStorage.getItem('isLoggedIn');
                 if (isLoggedIn === 'true') {
                     const username = await AsyncStorage.getItem('username') || 'User';
+
+                    if (safeResume) {
+                        navigation.replace('Dashboard', {
+                            username,
+                            deviceName: 'Smart Band',
+                            isConnected: false,
+                            autoConnect: false,
+                            safeResume: true,
+                        });
+                        return;
+                    }
+
                     const hasSeenBluetoothOnLaunch = await AsyncStorage.getItem('hasSeenBluetoothOnLaunch');
 
                     if (hasSeenBluetoothOnLaunch === 'true') {
@@ -53,7 +65,7 @@ const LogoScreen = ({ navigation }) => {
         }, 3000);
 
         return () => clearTimeout(timer);
-    }, [navigation]);
+    }, [navigation, safeResume]);
 
     return (
         <GradientBackground style={styles.container}>

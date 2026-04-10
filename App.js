@@ -5,11 +5,11 @@ import { StatusBar } from 'expo-status-bar';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import AppNavigator from './src/navigation/AppNavigator';
 
-export default function App() {
+export default function App({ safeResume = false }) {
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <SafeAreaProvider style={{ flex: 1 }}>
-        <AppNavigator />
+        <AppNavigator safeResume={safeResume} />
         <StatusBar style="light" translucent={true} backgroundColor="transparent" />
       </SafeAreaProvider>
     </GestureHandlerRootView>

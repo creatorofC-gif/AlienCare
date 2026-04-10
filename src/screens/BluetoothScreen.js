@@ -19,7 +19,7 @@ const BluetoothScreen = ({ navigation, route }) => {
     const steps = [
         {
             title: 'Step 1',
-            description: 'Scan and select the TherapyBand to connect.',
+            description: 'Press any button on the band to wake it up, then begin scanning.',
             actionLabel: isScanning ? 'Scanning...' : (isBluetoothConnected ? 'Connected' : 'Start Scanning'),
             icon: Bluetooth,
         },
@@ -149,7 +149,7 @@ const BluetoothScreen = ({ navigation, route }) => {
                             handleDeviceSelect(therapyBand);
                         }
                     } else {
-                        Alert.alert("No Devices Found", "Ensure the band is near and powered on.");
+                        Alert.alert("No Devices Found", "Ensure the band is near, and press any button to wake it up.");
                     }
                 });
             }).catch(err => {

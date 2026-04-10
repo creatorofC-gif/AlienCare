@@ -1,5 +1,5 @@
 import React, { useEffect, useCallback, useState, useRef } from 'react';
-import { View, Text, StyleSheet, Modal, TouchableOpacity, Dimensions, Platform, BackHandler, ScrollView, Animated } from 'react-native';
+import { View, Text, StyleSheet, Modal, TouchableOpacity, Dimensions, Platform, BackHandler, ScrollView, Animated, NativeModules } from 'react-native';
 // Replaced WheelPicker with custom ScrollView implementation for compatibility
 import { BlurView } from 'expo-blur';
 import { COLORS } from '../constants/theme';
@@ -9,6 +9,8 @@ const { height } = Dimensions.get('window');
 // Custom Wheel Picker Component to avoid native dependency issues
 const CustomWheelPicker = ({ items, selectedValue, onValueChange }) => {
     const scrollRef = useRef(null);
+    const lastTickIndexRef = useRef(null);
+    const { TherapyTimer } = NativeModules;
 
     useEffect(() => {
         // Scroll to initial value on mount
@@ -16,6 +18,7 @@ const CustomWheelPicker = ({ items, selectedValue, onValueChange }) => {
         if (index > -1 && scrollRef.current) {
             setTimeout(() => {
                 scrollRef.current.scrollTo({ y: index * 50, animated: false });
+                lastTickIndexRef.current = index;
             }, 100);
         }
     }, []); // Only run once on mount
@@ -29,6 +32,17 @@ const CustomWheelPicker = ({ items, selectedValue, onValueChange }) => {
                 snapToInterval={50} // Height of each item
                 decelerationRate="fast"
                 contentContainerStyle={{ paddingVertical: 75 }} // Center content: (200 - 50)/2 approx
+                onScroll={(e) => {
+                    const y = e.nativeEvent.contentOffset.y;
+                    const index = Math.max(0, Math.min(items.length - 1, Math.round(y / 50)));
+                    if (lastTickIndexRef.current !== index) {
+                        lastTickIndexRef.current = index;
+                        if (TherapyTimer && typeof TherapyTimer.triggerHapticTick === 'function') {
+                            TherapyTimer.triggerHapticTick();
+                        }
+                    }
+                }}
+                scrollEventThrottle={16}
                 onMomentumScrollEnd={(e) => {
                     const y = e.nativeEvent.contentOffset.y;
                     const index = Math.round(y / 50);
