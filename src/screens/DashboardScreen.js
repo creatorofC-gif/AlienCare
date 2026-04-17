@@ -73,6 +73,8 @@ const DashboardScreen = ({ navigation, route }) => {
     const ignoreDeviceUpdateUntilRef = React.useRef(0);
     const lastTempUpdateSourceRef = React.useRef('init'); // 'user' | 'device' | 'init'
     const lastModeUpdateSourceRef = React.useRef('init'); // 'user' | 'device' | 'init'
+    const lastHotTempRef = React.useRef(40);
+    const lastColdTempRef = React.useRef(15);
     const cooldownDuration = 5000; // 5s cooldown as requested
 
     const [isScanning, setIsScanning] = useState(false);
@@ -414,6 +416,9 @@ const DashboardScreen = ({ navigation, route }) => {
     const prevIsTimerRunningRef = React.useRef(false);
 
     useEffect(() => {
+        if (mode === 'Hot') lastHotTempRef.current = temp;
+        if (mode === 'Cold') lastColdTempRef.current = temp;
+
         if (lastModeUpdateSourceRef.current === 'device' || lastTempUpdateSourceRef.current === 'device') {
             lastModeUpdateSourceRef.current = 'init';
             lastTempUpdateSourceRef.current = 'init';
@@ -513,7 +518,15 @@ const DashboardScreen = ({ navigation, route }) => {
 
     useEffect(() => {
         if (mode === 'Off' && isTimerRunning) {
-            stopTimer();
+            // ESP32 usually turns off slightly before the native alarm rings.
+            // If the timer is almost done, do NOT cancel the native timer so the alarm sounds!
+            if (lastRemainingSecondsRef.current > 3 && lastRemainingSecondsRef.current !== -1) {
+                stopTimer();
+            } else {
+                setIsTimerRunning(false);
+                setRemainingSeconds(0);
+                prevIsTimerRunningRef.current = false;
+            }
         }
     }, [mode]);
 
@@ -669,10 +682,9 @@ const DashboardScreen = ({ navigation, route }) => {
             if (title === 'Off') {
                 sendCommandToDevice('Off', 0, 0);
             } else {
-                const { min } = TEMP_RANGES[title];
-                const startTemp = (title === 'Hot') ? Math.max(temp, min) : Math.min(temp, 24);
-                sendCommandToDevice(title, startTemp, -1);
-                setTemp(startTemp);
+                const targetTemp = (title === 'Hot') ? lastHotTempRef.current : (title === 'Cold' ? lastColdTempRef.current : temp);
+                sendCommandToDevice(title, targetTemp, -1);
+                setTemp(targetTemp);
             }
         };
 
@@ -798,7 +810,10 @@ const DashboardScreen = ({ navigation, route }) => {
 
     const handleDialInteractionEnd = () => {
         isUserAdjustingDialRef.current = false;
-        ignoreDeviceUpdateUntilRef.current = Date.now() + cooldownDuration;
+        // Reset immediately so ESP32 temp updates flow through right after user lifts finger.
+        // (Cooldown was already started in handleDialInteractionStart — extending it here
+        //  was blocking all ESP32 temperature notifications for 5s after every touch.)
+        ignoreDeviceUpdateUntilRef.current = 0;
         lastTempUpdateSourceRef.current = 'user';
         // Send -1 to preserve the hardware timer's current active countdown seamlessly
         sendCommandToDevice(mode, temp, -1);
@@ -1134,7 +1149,7 @@ const styles = StyleSheet.create({
     headerRight: {
         flexDirection: 'row',
         alignItems: 'center',
-        gap: 12,
+        gap: 10,
     },
     offBadge: {
         paddingHorizontal: 18,
@@ -1173,7 +1188,8 @@ const styles = StyleSheet.create({
         letterSpacing: 1.5,
     },
     settingsButton: { 
-        padding: 8 
+        paddingHorizontal: 4,
+        paddingVertical: 8,
     },
     modeContainer: {
         width: '100%',

@@ -1,4 +1,5 @@
 import React, { useRef, useEffect } from 'react';
+import * as Haptics from 'expo-haptics';
 import { StyleSheet, View, PanResponder, Dimensions, Animated, Text, TouchableOpacity, Vibration, NativeModules } from 'react-native';
 const { TherapyTimer } = NativeModules;
 import Svg, { Path, Circle, G, Defs, LinearGradient, Stop } from 'react-native-svg';
@@ -30,12 +31,7 @@ const TemperatureDial = ({
     const lastValRef = useRef(value);
 
     const triggerDialHapticTick = () => {
-        if (TherapyTimer && typeof TherapyTimer.triggerHapticTick === 'function') {
-            TherapyTimer.triggerHapticTick();
-            return;
-        }
-
-        Vibration.vibrate(600);
+        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     };
 
     useEffect(() => {
@@ -54,6 +50,9 @@ const TemperatureDial = ({
             stiffness: 120,
             useNativeDriver: false,
         }).start();
+
+        // Sync lastValRef so haptic gate stays accurate when ESP32 updates value externally
+        lastValRef.current = clampedValue;
     }, [value, min, max]);
 
     const polarToCartesian = (angle) => {

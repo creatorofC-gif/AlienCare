@@ -2,6 +2,7 @@ import { BleManager } from 'react-native-ble-plx';
 import { PermissionsAndroid, Platform, NativeModules } from 'react-native';
 import base64 from 'react-native-base64';
 
+
 let manager = null;
 let deviceConnected = null;
 let disconnectSubscription = null;
