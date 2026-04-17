@@ -48,6 +48,7 @@ import {
     connectToGivenDevice 
 } from '../../BLE_connection/TherapyBle';
 const DashboardScreen = ({ navigation, route }) => {
+    const SESSION_STATE_KEY = 'therapy_session_state';
     const [mode, setMode] = useState('Off'); // Hot, Cold, Off
     const [temp, setTemp] = useState(15);
     const [timer, setTimer] = useState(0); // Selected timer (minutes)
@@ -65,6 +66,9 @@ const DashboardScreen = ({ navigation, route }) => {
     const notificationIdRef = React.useRef(null);
     const targetTimeRef = React.useRef(null);
     const lastRemainingSecondsRef = React.useRef(-1);
+    const autoConnectAttemptedRef = React.useRef(false);
+    const isConnectedRef = React.useRef(isConnected);
+    const scanModalVisibleRef = React.useRef(scanModalVisible);
     const isUserAdjustingDialRef = React.useRef(false);
     const ignoreDeviceUpdateUntilRef = React.useRef(0);
     const lastTempUpdateSourceRef = React.useRef('init'); // 'user' | 'device' | 'init'
@@ -123,6 +127,7 @@ const DashboardScreen = ({ navigation, route }) => {
                 lastRemainingSecondsRef.current = 0;
                 prevIsTimerRunningRef.current = false;
                 AsyncStorage.removeItem('therapy_timer_target').catch(() => {});
+                AsyncStorage.removeItem(SESSION_STATE_KEY).catch(() => {});
                 setMode('Off');
 
                 Alert.alert(
@@ -153,29 +158,28 @@ const DashboardScreen = ({ navigation, route }) => {
                     const active = await TherapyTimer.isTimerActive();
                     if (active) {
                         const rem = await TherapyTimer.getRemainingSeconds();
+                        const sessionStateStr = await AsyncStorage.getItem(SESSION_STATE_KEY);
+                        if (sessionStateStr) {
+                            try {
+                                const sessionState = JSON.parse(sessionStateStr);
+                                if (sessionState?.mode && sessionState.mode !== 'Off') {
+                                    setMode(sessionState.mode);
+                                }
+                                if (typeof sessionState?.temp === 'number') {
+                                    setTemp(sessionState.temp);
+                                }
+                                if (typeof sessionState?.timer === 'number') {
+                                    setTimer(sessionState.timer);
+                                }
+                            } catch (_) {}
+                        }
                         const targetMs = Date.now() + rem * 1000;
                         targetTimeRef.current = targetMs;
                         lastRemainingSecondsRef.current = rem;
                         setRemainingSeconds(rem);
                         setIsTimerRunning(true);
                         prevIsTimerRunningRef.current = true;
-                        return; // Native is authoritative, skip AsyncStorage
-                    }
-                }
-                // Fallback: AsyncStorage (for cases where service already stopped but time remains)
-                const targetStr = await AsyncStorage.getItem('therapy_timer_target');
-                if (targetStr) {
-                    const target = parseInt(targetStr, 10);
-                    const now = Date.now();
-                    if (target > now) {
-                        const remaining = Math.round((target - now) / 1000);
-                        setRemainingSeconds(remaining);
-                        targetTimeRef.current = target;
-                        lastRemainingSecondsRef.current = remaining;
-                        setIsTimerRunning(true);
-                        prevIsTimerRunningRef.current = true;
-                    } else {
-                        await AsyncStorage.removeItem('therapy_timer_target');
+                        return;
                     }
                 }
             } catch (err) { }
@@ -193,6 +197,23 @@ const DashboardScreen = ({ navigation, route }) => {
                         .then(active => {
                             if (active) {
                                 return TherapyTimer.getRemainingSeconds().then(rem => {
+                                    AsyncStorage.getItem(SESSION_STATE_KEY)
+                                        .then(sessionStateStr => {
+                                            if (!sessionStateStr) return;
+                                            try {
+                                                const sessionState = JSON.parse(sessionStateStr);
+                                                if (sessionState?.mode && sessionState.mode !== 'Off') {
+                                                    setMode(sessionState.mode);
+                                                }
+                                                if (typeof sessionState?.temp === 'number') {
+                                                    setTemp(sessionState.temp);
+                                                }
+                                                if (typeof sessionState?.timer === 'number') {
+                                                    setTimer(sessionState.timer);
+                                                }
+                                            } catch (_) {}
+                                        })
+                                        .catch(() => {});
                                     // Re-anchor the local ref so JS countdown stays accurate
                                     targetTimeRef.current = Date.now() + rem * 1000;
                                     setRemainingSeconds(rem);
@@ -206,6 +227,7 @@ const DashboardScreen = ({ navigation, route }) => {
                                 targetTimeRef.current = null;
                                 prevIsTimerRunningRef.current = false;
                                 AsyncStorage.removeItem('therapy_timer_target').catch(() => {});
+                                AsyncStorage.removeItem(SESSION_STATE_KEY).catch(() => {});
                                 setMode('Off');
                             }
                         })
@@ -218,10 +240,21 @@ const DashboardScreen = ({ navigation, route }) => {
     }, [isTimerRunning, temp]);
 
     useEffect(() => {
+        isConnectedRef.current = isConnected;
+    }, [isConnected]);
+
+    useEffect(() => {
+        scanModalVisibleRef.current = scanModalVisible;
+    }, [scanModalVisible]);
+
+    useEffect(() => {
         if (route?.params?.autoConnect && !safeResume) {
             setScanModalVisible(true);
-            handleBluetoothScan();
+            const autoScanTimer = setTimeout(() => {
+                handleBluetoothScan();
+            }, 700);
             navigation.setParams({ autoConnect: undefined });
+            return () => clearTimeout(autoScanTimer);
         }
     }, [navigation, route?.params?.autoConnect, safeResume]);
 
@@ -470,6 +503,7 @@ const DashboardScreen = ({ navigation, route }) => {
         // Persist so session survives app kill
         if (totalSeconds > 0) {
             AsyncStorage.setItem('therapy_timer_target', targetMs.toString()).catch(() => {});
+            AsyncStorage.setItem(SESSION_STATE_KEY, JSON.stringify({ mode, temp, timer: minutes })).catch(() => {});
         }
 
         // Inform hardware — MUST send SECONDS (ESP32 expects seconds, e.g. 120 not 2).
@@ -490,6 +524,7 @@ const DashboardScreen = ({ navigation, route }) => {
         targetTimeRef.current = null;
         ignoreDeviceUpdateUntilRef.current = Date.now() + cooldownDuration;
         AsyncStorage.removeItem('therapy_timer_target').catch(() => {});
+        AsyncStorage.removeItem(SESSION_STATE_KEY).catch(() => {});
         
         if (TherapyTimer) {
             TherapyTimer.stopTimer();
@@ -498,6 +533,11 @@ const DashboardScreen = ({ navigation, route }) => {
         // Also inform the hardware to stop the timer
         sendCommandToDevice(mode, temp, 0); 
     };
+
+    useEffect(() => {
+        if (!isTimerRunning || mode === 'Off') return;
+        AsyncStorage.setItem(SESSION_STATE_KEY, JSON.stringify({ mode, temp, timer })).catch(() => {});
+    }, [isTimerRunning, mode, temp, timer]);
 
     useEffect(() => {
         const loadPresets = async () => {
@@ -592,6 +632,7 @@ const DashboardScreen = ({ navigation, route }) => {
             targetTimeRef.current = targetMs;
             lastRemainingSecondsRef.current = totalSeconds;
             AsyncStorage.setItem('therapy_timer_target', targetMs.toString()).catch(() => {});
+            AsyncStorage.setItem(SESSION_STATE_KEY, JSON.stringify({ mode: preset.mode, temp: preset.temp, timer: preset.timer })).catch(() => {});
             setRemainingSeconds(totalSeconds);
             setIsTimerRunning(totalSeconds > 0);
             prevIsTimerRunningRef.current = (totalSeconds > 0);
@@ -602,6 +643,7 @@ const DashboardScreen = ({ navigation, route }) => {
             setTimer(preset.timer);
             setRemainingSeconds(0);
             setIsTimerRunning(false);
+            AsyncStorage.removeItem(SESSION_STATE_KEY).catch(() => {});
         }
     };
 
@@ -699,7 +741,8 @@ const DashboardScreen = ({ navigation, route }) => {
 
     const currentRange = TEMP_RANGES[mode] || TEMP_RANGES.Cold;
 
-    const handleBluetoothScan = async () => {
+    const handleBluetoothScan = async (retryCount = 0) => {
+        autoConnectAttemptedRef.current = false;
         setIsScanning(true);
         try {
             await requestBluetoothPermission();
@@ -709,11 +752,16 @@ const DashboardScreen = ({ navigation, route }) => {
                         (d.name === "TherapyBand" || d.localName === "TherapyBand")
                     );
                     if (therapyBand) {
+                        if (autoConnectAttemptedRef.current) return;
+                        autoConnectAttemptedRef.current = true;
                         connectToGivenDevice(therapyBand, (success) => {
                             if (success) {
                                 setIsConnected(true);
+                                setIsScanning(false);
                                 setScanModalVisible(false);
                             } else {
+                                autoConnectAttemptedRef.current = false;
+                                setIsScanning(false);
                                 setScanModalVisible(false);
                                 Alert.alert("Connection Failed", "Could not connect to TherapyBand.");
                             }
@@ -727,7 +775,11 @@ const DashboardScreen = ({ navigation, route }) => {
             // If not found after 8 seconds (matching TherapyBle timeout)
             setTimeout(() => {
                 setIsScanning(false);
-                if (!isConnected && scanModalVisible) {
+                if (!isConnectedRef.current && scanModalVisibleRef.current) {
+                    if (retryCount === 0) {
+                        handleBluetoothScan(1);
+                        return;
+                    }
                     setScanModalVisible(false);
                     Alert.alert("Device Not Found", "Please make sure the band is powered on and nearby.");
                 }

@@ -42,6 +42,7 @@ const BluetoothScreen = ({ navigation, route }) => {
     const buttonAnim = useRef(new Animated.Value(0)).current;
     const pulseAnim = useRef(new Animated.Value(0)).current;
     const progressAnim = useRef(new Animated.Value(0)).current;
+    const autoConnectAttemptedRef = useRef(false);
 
     useEffect(() => {
         const animations = [
@@ -133,6 +134,7 @@ const BluetoothScreen = ({ navigation, route }) => {
             }
             setIsScanning(true);
             setScannedDevices([]);
+            autoConnectAttemptedRef.current = false;
 
             requestBluetoothPermission().then(() => {
                 scanForDevices((devices) => {
@@ -146,6 +148,8 @@ const BluetoothScreen = ({ navigation, route }) => {
                         );
                         
                         if (therapyBand) {
+                            if (autoConnectAttemptedRef.current) return;
+                            autoConnectAttemptedRef.current = true;
                             handleDeviceSelect(therapyBand);
                         }
                     } else {

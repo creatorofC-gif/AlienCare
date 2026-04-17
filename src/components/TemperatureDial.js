@@ -35,7 +35,7 @@ const TemperatureDial = ({
             return;
         }
 
-        Vibration.vibrate(10);
+        Vibration.vibrate(600);
     };
 
     useEffect(() => {

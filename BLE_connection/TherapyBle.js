@@ -1,9 +1,12 @@
 import { BleManager } from 'react-native-ble-plx';
-import { PermissionsAndroid, Platform } from 'react-native';
+import { PermissionsAndroid, Platform, NativeModules } from 'react-native';
 import base64 from 'react-native-base64';
 
 let manager = null;
 let deviceConnected = null;
+let disconnectSubscription = null;
+let connectionInProgress = false;
+const { TherapyTimer } = NativeModules;
 
 function getBleManager() {
   if (manager) return manager;
@@ -65,6 +68,7 @@ export async function scanForDevices(onDeviceFound) {
   }
   const discoveredDevices = new Map();
 
+  m.stopDeviceScan();
   m.startDeviceScan(null, null, (error, device) => {
     if (error) return;
 
@@ -86,19 +90,53 @@ export async function scanForDevices(onDeviceFound) {
 // --------------------
 export async function connectToGivenDevice(device, onConnected) {
   const m = getBleManager();
-  if (!m) {
+  if (!m || connectionInProgress) {
     onConnected(false);
     return;
   }
 
+  connectionInProgress = true;
   m.stopDeviceScan(); // Stop scanning before connecting
 
   try {
-    deviceConnected = await device.connect();
-    await deviceConnected.discoverAllServicesAndCharacteristics();
+    if (disconnectSubscription) {
+      disconnectSubscription.remove();
+      disconnectSubscription = null;
+    }
+
+    if (deviceConnected && deviceConnected.id !== device.id) {
+      try {
+        await deviceConnected.cancelConnection();
+      } catch (_) {}
+      deviceConnected = null;
+    }
+
+    const isCurrentlyConnected = await device.isConnected().catch(() => false);
+    if (isCurrentlyConnected) {
+      try {
+        deviceConnected = device;
+        await deviceConnected.discoverAllServicesAndCharacteristics();
+      } catch (err) {
+        // Zombie connection reuse failed, cleanly reset
+        await m.cancelDeviceConnection(device.id).catch(() => {});
+        deviceConnected = await device.connect();
+        await deviceConnected.discoverAllServicesAndCharacteristics();
+      }
+    } else {
+      // Not connected, connect normally
+      // Clean up any lingering internal state just in case
+      await m.cancelDeviceConnection(device.id).catch(() => {});
+      deviceConnected = await device.connect();
+      await deviceConnected.discoverAllServicesAndCharacteristics();
+    }
+
+    TherapyTimer?.rememberConnectedDevice?.(device.id);
     onConnected(true);
   } catch (err) {
+    console.warn("[BLE] Connect error:", err);
     onConnected(false);
+  } finally {
+    connectionInProgress = false;
   }
 }
 
@@ -263,8 +301,15 @@ export function stopDeviceStatusMonitoring() {
 // --------------------
 export function onDeviceDisconnect(callback) {
   if (deviceConnected) {
-    deviceConnected.onDisconnected((error, device) => {
+    if (disconnectSubscription) {
+      disconnectSubscription.remove();
+    }
+
+    disconnectSubscription = deviceConnected.onDisconnected((error, device) => {
       deviceConnected = null;
+      disconnectSubscription = null;
+      connectionInProgress = false;
+      TherapyTimer?.clearRememberedDevice?.();
       callback();
     });
   }
@@ -276,8 +321,15 @@ export function onDeviceDisconnect(callback) {
 export function disconnectDevice() {
   stopMonitoring();
   stopDeviceStatusMonitoring();
+  if (disconnectSubscription) {
+    disconnectSubscription.remove();
+    disconnectSubscription = null;
+  }
+  connectionInProgress = false;
+  getBleManager()?.stopDeviceScan();
   if (deviceConnected) {
     deviceConnected.cancelConnection();
     deviceConnected = null;
   }
+  TherapyTimer?.clearRememberedDevice?.();
 }
