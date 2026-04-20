@@ -18,7 +18,7 @@ import {
     KeyboardAvoidingView,
     AppState
 } from 'react-native';
-import { Thermometer, Wind, Power, Clock, Plus, Settings, Home, User as UserIcon, X, ChevronLeft } from 'lucide-react-native';
+import { Thermometer, Wind, Power, Clock, Plus, Settings, Home, User as UserIcon, X, ChevronLeft, Dumbbell, Zap, Flower, Droplet, Star, Heart, Flame, Snowflake, Activity } from 'lucide-react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Notifications from 'expo-notifications';
@@ -60,6 +60,7 @@ const DashboardScreen = ({ navigation, route }) => {
     const [isLoading, setIsLoading] = useState(false);
     const [showPresetModal, setShowPresetModal] = useState(false);
     const [newPresetName, setNewPresetName] = useState('');
+    const [newPresetIcon, setNewPresetIcon] = useState('Activity');
 
     const fadeAnim = React.useRef(new Animated.Value(1)).current;
     const timerIntervalRef = React.useRef(null);
@@ -575,8 +576,8 @@ const DashboardScreen = ({ navigation, route }) => {
     };
 
     const handleSavePresetStart = () => {
-        if (presets.length >= 3) {
-            Alert.alert("Limit Reached", "You can only save up to 3 custom presets.");
+        if (presets.length >= 6) {
+            Alert.alert("Limit Reached", "You can only save up to 6 custom presets.");
             return;
         }
         setNewPresetName(`Mode ${presets.length + 1}`);
@@ -591,6 +592,7 @@ const DashboardScreen = ({ navigation, route }) => {
         const newPreset = {
             id: Date.now().toString(),
             name: newPresetName.trim(),
+            icon: newPresetIcon,
             mode,
             temp,
             timer,
@@ -834,70 +836,51 @@ const DashboardScreen = ({ navigation, route }) => {
         }
     };
 
+    const getPresetIcon = (iconName, color) => {
+        const props = { color, size: 28, strokeWidth: 2 };
+        switch(iconName) {
+            case 'Dumbbell': return <Dumbbell {...props} />;
+            case 'Zap': return <Zap {...props} />;
+            case 'Flower': return <Flower {...props} />;
+            case 'Droplet': return <Droplet {...props} />;
+            case 'Star': return <Star {...props} />;
+            case 'Heart': return <Heart {...props} />;
+            case 'Flame': return <Flame {...props} />;
+            case 'Snowflake': return <Snowflake {...props} />;
+            default: return <Activity {...props} />;
+        }
+    };
+
+    const ICON_OPTIONS = ['Activity', 'Dumbbell', 'Zap', 'Flower', 'Droplet', 'Star', 'Heart', 'Flame'];
+
     return (
         <GradientBackground mode={mode}>
             <SafeAreaView style={styles.container}>
                 {/* Header block mirroring HTML */}
                 <View style={styles.header}>
-                    <View style={styles.headerLeft}>
-                        <TouchableOpacity 
-                            style={styles.backButton}
-                            onPress={() => {
-                                Alert.alert("Exit App", "Are you sure you want to exit?", [
-                                    { text: "Cancel", style: "cancel" },
-                                    { text: "Exit", onPress: () => BackHandler.exitApp() }
-                                ]);
-                            }}
-                        >
-                            <ChevronLeft color="white" size={20} />
-                        </TouchableOpacity>
-                        <Text style={styles.greetingHeader}>Hello, {username}</Text>
-                        <Text style={[styles.subtitleHeader, mode === 'Hot' ? { color: COLORS.hot } : mode === 'Cold' ? { color: COLORS.cold } : { color: 'rgba(255,255,255,0.4)' }]}>
-                            {mode === 'Hot' ? 'THERAPY READY' : mode === 'Cold' ? 'SYSTEM COOLING' : 'IDLE'}
+                    <TouchableOpacity 
+                        style={styles.powerButton}
+                        onPress={() => {
+                            if (!isConnected) return;
+                            setMode('Off');
+                        }}
+                    >
+                        <Power color={mode === 'Off' ? COLORS.off : COLORS.hot} size={24} />
+                    </TouchableOpacity>
+                    
+                    <View style={styles.headerCenter}>
+                        <Text style={styles.greetingHeader}>HELLO, {username.toUpperCase()}</Text>
+                        <Text style={[styles.connStatus, { color: isConnected ? COLORS.success : COLORS.danger }]}>
+                            ● {isConnected ? 'CONNECTED' : 'OFFLINE'}
                         </Text>
                     </View>
-                    <View style={styles.headerRight}>
-                        <TouchableOpacity
-                            style={[
-                                styles.connectionBadge,
-                                { borderColor: isConnected ? 'rgba(16, 185, 129, 0.3)' : 'rgba(239, 68, 68, 0.3)' }
-                            ]}
-                            activeOpacity={0.8}
-                            onPress={() => {
-                                if (!isConnected) {
-                                    setScanModalVisible(true);
-                                    handleBluetoothScan();
-                                }
-                            }}
-                        >
-                            <View style={[
-                                styles.connectionDot,
-                                { backgroundColor: isConnected ? COLORS.success : COLORS.danger }
-                            ]} />
-                            <Text style={[
-                                styles.connectionText,
-                                { color: isConnected ? COLORS.success : COLORS.danger }
-                            ]}>
-                                {isConnected ? 'CONNECTED' : 'OFFLINE'}
-                            </Text>
-                        </TouchableOpacity>
-                        <TouchableOpacity 
-                            style={[styles.offBadge, !isConnected && { opacity: 0.5 }]} 
-                            onPress={() => {
-                                if (!isConnected) return;
-                                setMode('Off');
-                            }}
-                            activeOpacity={isConnected ? 0.7 : 1}
-                        >
-                            <Text style={styles.offBadgeText}>OFF</Text>
-                        </TouchableOpacity>
-                        <TouchableOpacity style={styles.settingsButton} onPress={() => navigation.navigate('Profile', { username, deviceName })}>
-                            <Settings color="rgba(255,255,255,0.6)" size={24} />
-                        </TouchableOpacity>
-                    </View>
+                    
+                    <TouchableOpacity style={styles.settingsButton} onPress={() => navigation.navigate('Profile', { username, deviceName })}>
+                        <Settings color={COLORS.hot} size={24} />
+                    </TouchableOpacity>
                 </View>
 
-                {/* Mode toggle */}
+                {/* Mode Toggle */}
                 <View style={styles.modeContainer}>
                     <View style={styles.modePill}>
                         <TouchableOpacity 
@@ -907,15 +890,11 @@ const DashboardScreen = ({ navigation, route }) => {
                                 !isConnected && { opacity: 0.5 }
                             ]} 
                             onPress={() => {
-                                if (!isConnected) {
-                                    Alert.alert("Offline", "Please connect to the TherapyBand via Bluetooth first.");
-                                    return;
-                                }
+                                if (!isConnected) { Alert.alert("Offline", "Connect first."); return; }
                                 setMode('Hot');
                             }}
-                            activeOpacity={isConnected ? 0.7 : 1}
                         >
-                            <Text style={[styles.modeTabText, mode === 'Hot' && {color: 'white'}]}>HOT</Text>
+                            <Text style={[styles.modeTabText, mode === 'Hot' ? {color: '#331100'} : {color: COLORS.outline}]}>HOT</Text>
                         </TouchableOpacity>
                         <TouchableOpacity 
                             style={[
@@ -924,15 +903,11 @@ const DashboardScreen = ({ navigation, route }) => {
                                 !isConnected && { opacity: 0.5 }
                             ]} 
                             onPress={() => {
-                                if (!isConnected) {
-                                    Alert.alert("Offline", "Please connect to the TherapyBand via Bluetooth first.");
-                                    return;
-                                }
+                                if (!isConnected) { Alert.alert("Offline", "Connect first."); return; }
                                 setMode('Cold');
                             }}
-                            activeOpacity={isConnected ? 0.7 : 1}
                         >
-                            <Text style={[styles.modeTabText, mode === 'Cold' && {color: 'white'}]}>COLD</Text>
+                            <Text style={[styles.modeTabText, mode === 'Cold' ? {color: '#002220'} : {color: COLORS.outline}]}>COLD</Text>
                         </TouchableOpacity>
                     </View>
                 </View>
@@ -953,20 +928,11 @@ const DashboardScreen = ({ navigation, route }) => {
                             isTimerRunning={isTimerRunning}
                             timerValue={`${Math.floor(remainingSeconds / 60) < 10 ? '0' : ''}${Math.floor(remainingSeconds / 60)}:${remainingSeconds % 60 < 10 ? '0' : ''}${remainingSeconds % 60}`}
                             onTimerPress={() => {
-                                if (!isConnected) {
-                                    Alert.alert("Offline", "Please connect to the TherapyBand to use the timer.");
-                                    return;
-                                }
-                                if (isTimerRunning) {
-                                    stopTimer();
-                                } else {
-                                    setShowTimerModal(true);
-                                }
+                                if (!isConnected) { Alert.alert("Offline", "Connect first."); return; }
+                                if (isTimerRunning) stopTimer(); else setShowTimerModal(true);
                             }}
                             onInteractionStart={() => {
-                                if (!isConnected) {
-                                    Alert.alert("Offline", "Please connect to the TherapyBand to change temperature.");
-                                }
+                                if (!isConnected) { Alert.alert("Offline", "Connect first."); }
                                 handleDialInteractionStart();
                             }}
                             onInteractionEnd={handleDialInteractionEnd}
@@ -974,131 +940,132 @@ const DashboardScreen = ({ navigation, route }) => {
                     )}
                 </Animated.View>
 
-                {/* Presets shown below dial (tap to apply, long-press to delete) */}
-                {presets.length > 0 && (
-                    <View style={styles.presetsRow}>
-                        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.presetsRowContent}>
-                            {presets.map((preset) => (
-                                <TouchableOpacity
-                                    key={preset.id}
-                                    style={[
-                                        styles.presetChip,
-                                        { borderColor: preset.mode === 'Hot' ? 'rgba(249, 115, 22, 0.35)' : preset.mode === 'Cold' ? 'rgba(59, 130, 246, 0.35)' : 'rgba(255,255,255,0.18)' },
-                                        !isConnected && { opacity: 0.5 }
-                                    ]}
-                                    activeOpacity={isConnected ? 0.85 : 1}
-                                    onPress={() => applyPreset(preset)}
-                                    onLongPress={() => handleDeletePreset(preset.id)}
-                                    delayLongPress={500}
-                                >
-                                    <View style={[
-                                        styles.presetChipDot,
-                                        { backgroundColor: preset.mode === 'Hot' ? COLORS.hot : preset.mode === 'Cold' ? COLORS.cold : COLORS.off }
-                                    ]} />
-                                    <Text style={styles.presetChipText} numberOfLines={1}>
-                                        {preset.name}
-                                    </Text>
-                                </TouchableOpacity>
-                            ))}
-                        </ScrollView>
+                {/* Current Program Info */}
+                <View style={styles.programCardWrapper}>
+                    <View style={styles.programCard}>
+                        <Text style={styles.programLabel}>CURRENT PROGRAM</Text>
+                        <Text style={styles.programTitle}>Manual Mode</Text>
+                        <Text style={styles.programDesc}>Adaptive {(mode || 'Off').toLowerCase()} therapy active</Text>
                     </View>
-                )}
-
-                <View style={{ flex: 1 }} />
-
-                {/* Bottom Custom Preset Button */}
-                <View style={styles.bottomSection}>
-                    <TouchableOpacity 
-                        style={[
-                            styles.customPresetBtn, 
-                            mode === 'Hot' ? styles.presetHot : mode === 'Cold' ? styles.presetCold : styles.presetOff
-                        ]}
-                        onPress={handleSavePresetStart}
-                        activeOpacity={0.9}
-                    >
-                        <Text style={styles.customPresetText}>CUSTOM PRESET</Text>
-                    </TouchableOpacity>
                 </View>
 
-                {/* HTML explicitly had this home indicator graphic at the very bottom */}
-                <View style={styles.homeIndicatorWrapper}>
-                    <View style={styles.homeIndicator} />
+                {/* Custom Preset Section (Grid) */}
+                <View style={styles.presetSection}>
+                    <View style={styles.presetSectionHeader}>
+                        <Text style={styles.presetSectionTitle}>CUSTOM PRESETS</Text>
+                        <TouchableOpacity onPress={handleSavePresetStart}>
+                            <Text style={styles.addPresetBtn}>+ ADD NEW</Text>
+                        </TouchableOpacity>
+                    </View>
+                    
+                    <ScrollView style={styles.presetGridScroll} contentContainerStyle={styles.presetGrid} showsVerticalScrollIndicator={false}>
+                        {presets.map((preset) => (
+                            <TouchableOpacity
+                                key={preset.id}
+                                style={[
+                                    styles.presetGridItem,
+                                    preset.mode === 'Hot' ? styles.presetGridItemHot : styles.presetGridItemCold,
+                                    !isConnected && { opacity: 0.5 }
+                                ]}
+                                onPress={() => applyPreset(preset)}
+                                onLongPress={() => handleDeletePreset(preset.id)}
+                            >
+                                {getPresetIcon(preset.icon || 'Activity', preset.mode === 'Hot' ? COLORS.hot : COLORS.cold)}
+                                <Text style={styles.presetGridItemText} numberOfLines={1}>{preset.name}</Text>
+                            </TouchableOpacity>
+                        ))}
+                    </ScrollView>
                 </View>
+
+                {/* Fixed Bottom Bar Replacement */}
+                <View style={styles.bottomBar}>
+                    <View style={styles.bottomBarItem}>
+                        <View style={[styles.bottomBarIconWrapper, mode === 'Hot' && styles.bottomBarIconActiveHot]}>
+                            <Thermometer color={mode === 'Hot' ? '#0C0500' : COLORS.outline} size={30} />
+                        </View>
+                        <Text style={[styles.bottomBarLabel, mode === 'Hot' ? {color: COLORS.hot} : {color: COLORS.outline}]}>HOT</Text>
+                    </View>
+                    <View style={styles.bottomBarItem}>
+                        <View style={[styles.bottomBarIconWrapper, mode === 'Cold' && styles.bottomBarIconActiveCold]}>
+                            <Snowflake color={mode === 'Cold' ? '#0C0500' : COLORS.outline} size={30} />
+                        </View>
+                        <Text style={[styles.bottomBarLabel, mode === 'Cold' ? {color: COLORS.cold} : {color: COLORS.outline}]}>COLD</Text>
+                    </View>
+                </View>
+
             </SafeAreaView>
 
-            {/* Top Overlay Timer Modal */}
+            {/* Timer Modal */}
             <WheelTimer
                 visible={showTimerModal}
                 value={timer}
                 onClose={() => setShowTimerModal(false)}
                 onSave={(val) => {
                     ignoreDeviceUpdateUntilRef.current = Date.now() + cooldownDuration;
-                    lastModeUpdateSourceRef.current = 'user'; // Treat as user action
+                    lastModeUpdateSourceRef.current = 'user';
                     handleTimerSet(val);
                     setShowTimerModal(false);
                 }}
             />
 
             {/* Scanning Modal */}
-            <Modal
-                visible={scanModalVisible}
-                transparent
-                animationType="fade"
-                onRequestClose={() => setScanModalVisible(false)}
-            >
+            <Modal visible={scanModalVisible} transparent animationType="fade" onRequestClose={() => setScanModalVisible(false)}>
                 <View style={styles.modalOverlay}>
                     <View style={[styles.modalContent, { alignItems: 'center', paddingVertical: 40 }]}>
-                        <ActivityIndicator size="large" color={COLORS.primary} />
+                        <ActivityIndicator size="large" color={COLORS.hot} />
                         <Text style={[styles.modalTitle, { marginTop: 20 }]}>Scanning...</Text>
                         <Text style={styles.modalSubtitle}>Press any button on your band to wake it up!</Text>
-                        <TouchableOpacity 
-                            style={[styles.saveBtn, { marginTop: 20, backgroundColor: 'rgba(255,255,255,0.1)' }]}
-                            onPress={() => setScanModalVisible(false)}
-                        >
+                        <TouchableOpacity style={[styles.saveBtn, { marginTop: 20, backgroundColor: 'rgba(255,255,255,0.1)' }]} onPress={() => setScanModalVisible(false)}>
                             <Text style={styles.saveBtnText}>Cancel</Text>
                         </TouchableOpacity>
                     </View>
                 </View>
             </Modal>
 
-            {/* Modified Preset Modal - Lists Presets & Allows Saving */}
-            <Modal
-                visible={showPresetModal}
-                transparent
-                animationType="slide"
-                onRequestClose={() => setShowPresetModal(false)}
-            >
-                <KeyboardAvoidingView 
-                    behavior={Platform.OS === "ios" ? "padding" : "height"}
-                    style={{ flex: 1 }}
-                >
+            {/* Icon Selection Preset Modal */}
+            <Modal visible={showPresetModal} transparent animationType="slide" onRequestClose={() => setShowPresetModal(false)}>
+                <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : "height"} style={{ flex: 1 }}>
                     <Pressable style={styles.modalOverlay} onPress={() => setShowPresetModal(false)}>
-                        <Pressable style={styles.modalContent} onPress={(e) => e.stopPropagation()}>
+                        <Pressable style={styles.presetModalContent} onPress={(e) => e.stopPropagation()}>
                             <View style={styles.modalHeader}>
-                                <Text style={styles.modalTitle}>Save Preset</Text>
-                                <TouchableOpacity 
-                                    hitSlop={{ top: 20, bottom: 20, left: 20, right: 20 }}
-                                    onPress={() => setShowPresetModal(false)}
-                                >
+                                <Text style={styles.modalTitle}>New Preset</Text>
+                                <TouchableOpacity hitSlop={{ top: 20, bottom: 20, left: 20, right: 20 }} onPress={() => setShowPresetModal(false)}>
                                     <X color="rgba(255,255,255,0.6)" size={24} />
                                 </TouchableOpacity>
                             </View>
-                            <Text style={styles.modalSubtitle}>Save current settings</Text>
+                            
+                            <Text style={styles.modalLabelName}>PRESET NAME</Text>
                             <TextInput
                                 style={styles.input}
                                 value={newPresetName}
                                 onChangeText={setNewPresetName}
-                                placeholder={`e.g., "Mode ${presets.length + 1}"`}
-                                placeholderTextColor="rgba(255,255,255,0.4)"
+                                placeholder="e.g. Morning Routine"
+                                placeholderTextColor="rgba(255,255,255,0.3)"
                                 maxLength={16}
-                                autoFocus
                             />
+
+                            <Text style={[styles.modalLabelName, { marginTop: 15 }]}>SELECT ICON</Text>
+                            <View style={styles.iconGrid}>
+                                {ICON_OPTIONS.map(icon => (
+                                    <TouchableOpacity 
+                                        key={icon}
+                                        style={[
+                                            styles.iconBtn,
+                                            newPresetIcon === icon && styles.iconBtnActive
+                                        ]}
+                                        onPress={() => setNewPresetIcon(icon)}
+                                    >
+                                        {getPresetIcon(icon, newPresetIcon === icon ? COLORS.hot : COLORS.outline)}
+                                    </TouchableOpacity>
+                                ))}
+                            </View>
+
                             <TouchableOpacity
                                 style={[styles.saveBtn, !newPresetName.trim() && { opacity: 0.5 }]}
                                 onPress={handleSavePresetConfirm}
                                 disabled={!newPresetName.trim()}
                             >
-                                <Text style={styles.saveBtnText}>Save preset</Text>
+                                <Text style={styles.saveBtnText}>SAVE PRESET</Text>
                             </TouchableOpacity>
                         </Pressable>
                     </Pressable>
@@ -1118,242 +1085,212 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         justifyContent: 'space-between',
         alignItems: 'center',
-        marginBottom: 20,
+        marginBottom: 10,
     },
-    headerLeft: {
-        flexDirection: 'column',
-        justifyContent: 'center',
+    powerButton: {
+        padding: 10,
+        backgroundColor: COLORS.cardBackgroundHigh,
+        borderRadius: 24,
     },
-    backButton: {
-        padding: 6,
-        borderRadius: 20,
-        backgroundColor: 'rgba(255,255,255,0.05)',
-        width: 32,
-        height: 32,
+    headerCenter: {
         alignItems: 'center',
-        justifyContent: 'center',
-        marginBottom: 8,
     },
     greetingHeader: {
-        fontSize: 20,
+        fontSize: 14,
         fontWeight: 'bold',
-        color: '#FFFFFF',
-        letterSpacing: -0.5,
-    },
-    subtitleHeader: {
-        fontSize: 10,
-        fontWeight: '600',
+        color: COLORS.text,
         letterSpacing: 2,
+    },
+    connStatus: {
+        fontSize: 10,
+        fontWeight: 'bold',
+        letterSpacing: 1,
         marginTop: 2,
     },
-    headerRight: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 10,
-    },
-    offBadge: {
-        paddingHorizontal: 18,
-        paddingVertical: 10,
-        backgroundColor: 'rgba(239, 68, 68, 0.1)',
-        borderRadius: 20,
-        borderWidth: 1,
-        borderColor: 'rgba(239, 68, 68, 0.2)',
-    },
-    offBadgeText: { 
-        fontSize: 13, 
-        fontWeight: 'bold', 
-        color: '#f87171',
-        textTransform: 'uppercase', 
-        letterSpacing: 2 
-    },
-    connectionBadge: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        paddingHorizontal: 18,
-        paddingVertical: 10,
-        borderRadius: 20,
-        backgroundColor: 'rgba(255,255,255,0.05)',
-        borderWidth: 1,
-    },
-    connectionDot: {
-        width: 8,
-        height: 8,
-        borderRadius: 4,
-        marginRight: 8,
-    },
-    connectionText: {
-        fontSize: 12,
-        fontWeight: 'bold',
-        textTransform: 'uppercase',
-        letterSpacing: 1.5,
-    },
-    settingsButton: { 
-        paddingHorizontal: 4,
-        paddingVertical: 8,
+    settingsButton: {
+        padding: 10,
+        backgroundColor: COLORS.cardBackgroundHigh,
+        borderRadius: 24,
     },
     modeContainer: {
-        width: '100%',
         alignItems: 'center',
-        justifyContent: 'center',
-        marginTop: 10,
-        marginBottom: 10,
+        marginVertical: 10,
     },
     modePill: {
         flexDirection: 'row',
-        backgroundColor: 'rgba(255,255,255,0.05)',
-        padding: 8,
-        borderRadius: 34,
-        borderWidth: 1,
-        borderColor: 'rgba(255,255,255,0.1)',
-        width: 250,
+        backgroundColor: COLORS.cardBackgroundHigh,
+        borderRadius: 30,
+        padding: 4,
+        width: 240,
     },
     modeTab: {
         flex: 1,
-        paddingVertical: 14,
+        paddingVertical: 10,
         alignItems: 'center',
         justifyContent: 'center',
-        borderRadius: 30,
+        borderRadius: 26,
     },
     hotTabActive: {
         backgroundColor: COLORS.hot,
-        shadowColor: COLORS.hot,
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.3,
-        shadowRadius: 4,
-        elevation: 4,
     },
     coldTabActive: {
         backgroundColor: COLORS.cold,
-        shadowColor: COLORS.cold,
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.3,
-        shadowRadius: 4,
-        elevation: 4,
     },
     modeTabText: {
-        fontSize: 15,
+        fontSize: 12,
         fontWeight: 'bold',
+        letterSpacing: 1,
         textTransform: 'uppercase',
-        letterSpacing: 2,
-        color: 'rgba(255,255,255,0.4)',
-    },
-    modeTabTextActive: {
-        fontSize: 15,
-        fontWeight: 'bold',
-        textTransform: 'uppercase',
-        letterSpacing: 2,
-        color: 'white',
     },
     dialWrapper: {
         alignItems: 'center',
         justifyContent: 'center',
-        minHeight: 350,
-        marginTop: 40,
+        marginVertical: 10,
+        minHeight: 300,
     },
-    presetsRow: {
-        width: '100%',
+    loadingContainer: {
+        paddingVertical: 40,
+    },
+    programCardWrapper: {
+        paddingHorizontal: 0,
+        marginVertical: 0,
+    },
+    programCard: {
+        backgroundColor: COLORS.surfaceContainer,
+        borderLeftWidth: 4,
+        borderLeftColor: COLORS.hot, 
+        borderRadius: 8,
+        padding: 16,
+    },
+    programLabel: {
+        fontSize: 10,
+        fontWeight: 'bold',
+        color: COLORS.hot,
+        letterSpacing: 1,
+    },
+    programTitle: {
+        fontSize: 18,
+        color: COLORS.text,
+        fontWeight: 'bold',
         marginTop: 6,
+    },
+    programDesc: {
+        fontSize: 12,
+        color: COLORS.outline,
+        marginTop: 4,
+    },
+    presetSection: {
+        flex: 1,
+        marginTop: 20,
+    },
+    presetSectionHeader: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
         marginBottom: 10,
     },
-    presetsRowContent: {
-        paddingHorizontal: 2,
-        gap: 10,
+    presetSectionTitle: {
+        fontSize: 10,
+        color: COLORS.outline,
+        fontWeight: 'bold',
+        letterSpacing: 1,
     },
-    presetChip: {
+    addPresetBtn: {
+        fontSize: 10,
+        color: COLORS.text,
+        letterSpacing: 1,
+    },
+    presetGridScroll: {
+        flex: 1,
+    },
+    presetGrid: {
+        flexDirection: 'row',
+        flexWrap: 'wrap',
+        justifyContent: 'space-between',
+        paddingBottom: 20,
+    },
+    presetGridItem: {
+        width: '48%',
+        backgroundColor: COLORS.cardBackgroundHigh,
+        borderRadius: 16,
+        padding: 16,
+        marginBottom: 12,
         flexDirection: 'row',
         alignItems: 'center',
-        paddingVertical: 14,
-        paddingHorizontal: 16,
-        borderRadius: 999,
-        backgroundColor: 'rgba(255,255,255,0.06)',
         borderWidth: 1,
-        maxWidth: 180,
+        borderColor: 'transparent',
     },
-    presetChipDot: {
-        width: 10,
-        height: 10,
-        borderRadius: 5,
-        marginRight: 10,
+    presetGridItemHot: {
+        borderTopColor: 'rgba(255, 122, 32, 0.4)',
+        borderLeftColor: 'rgba(255, 122, 32, 0.1)',
+        borderRightColor: 'rgba(255, 122, 32, 0.1)',
     },
-    presetChipText: {
-        color: 'rgba(255,255,255,0.9)',
-        fontWeight: '700',
+    presetGridItemCold: {
+        borderTopColor: 'rgba(0, 229, 188, 0.4)',
+        borderLeftColor: 'rgba(0, 229, 188, 0.1)',
+        borderRightColor: 'rgba(0, 229, 188, 0.1)',
+    },
+    presetGridItemText: {
+        color: COLORS.text,
         fontSize: 14,
-        letterSpacing: 0.5,
+        fontWeight: '600',
+        marginLeft: 10,
+        flex: 1,
     },
-    loadingContainer: { 
-        alignItems: 'center', 
-        justifyContent: 'center', 
-        paddingVertical: 60 
+    bottomBar: {
+        flexDirection: 'row',
+        backgroundColor: COLORS.backgroundEnd,
+        borderTopWidth: 1,
+        borderTopColor: COLORS.surfaceContainer,
+        borderRadius: 24,
+        paddingVertical: 10,
+        paddingHorizontal: 10,
+        marginBottom: 20,
+        justifyContent: 'space-between',
     },
-    bottomSection: {
-        width: '100%',
-        paddingBottom: 20,
-        alignItems: 'center',
-    },
-    customPresetBtn: {
-        width: 250,
-        paddingVertical: 20,
-        borderRadius: 16,
+    bottomBarItem: {
+        flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'center',
+        flex: 1,
+        paddingVertical: 8,
     },
-    presetHot: {
-        backgroundColor: COLORS.hot,
-        shadowColor: COLORS.hot,
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.3,
-        shadowRadius: 8,
-        elevation: 6,
-    },
-    presetCold: {
-        backgroundColor: COLORS.cold,
-        shadowColor: COLORS.cold,
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.3,
-        shadowRadius: 8,
-        elevation: 6,
-    },
-    presetOff: {
-        backgroundColor: COLORS.off,
-        shadowColor: COLORS.off,
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.3,
-        shadowRadius: 8,
-        elevation: 6,
-    },
-    customPresetText: {
-        color: 'white',
-        fontSize: 12,
+    bottomBarLabel: {
+        fontSize: 14,
         fontWeight: 'bold',
-        letterSpacing: 3,
+        marginLeft: 10,
     },
-    homeIndicatorWrapper: {
-        width: '100%',
-        paddingBottom: 8,
+    bottomBarIconWrapper: {
+        width: 48,
+        height: 48,
+        borderRadius: 24,
         alignItems: 'center',
-        justifyContent: 'center'
+        justifyContent: 'center',
+        backgroundColor: COLORS.cardBackgroundHigh,
     },
-    homeIndicator: {
-        height: 6,
-        width: 130,
-        backgroundColor: 'rgba(255,255,255,0.2)',
-        borderRadius: 3,
+    bottomBarIconActiveHot: {
+        backgroundColor: COLORS.hot,
+    },
+    bottomBarIconActiveCold: {
+        backgroundColor: COLORS.cold,
     },
     modalOverlay: {
         flex: 1,
-        backgroundColor: 'rgba(0,0,0,0.7)',
+        backgroundColor: 'rgba(12, 5, 0, 0.8)',
         justifyContent: 'flex-end',
     },
     modalContent: {
-        width: '100%',
-        backgroundColor: '#111827',
+        backgroundColor: COLORS.backgroundEnd,
+        borderTopLeftRadius: 24,
+        borderTopRightRadius: 24,
+        padding: 24,
+    },
+    presetModalContent: {
+        backgroundColor: COLORS.backgroundEnd,
         borderTopLeftRadius: 24,
         borderTopRightRadius: 24,
         padding: 24,
         paddingBottom: 40,
-        borderTopWidth: 1,
-        borderColor: 'rgba(255,255,255,0.1)',
     },
     modalHeader: {
         flexDirection: 'row',
@@ -1364,67 +1301,63 @@ const styles = StyleSheet.create({
     modalTitle: {
         fontSize: 20,
         fontWeight: 'bold',
-        color: '#fff',
+        color: COLORS.text,
     },
     modalSubtitle: {
         fontSize: 14,
-        color: 'rgba(255,255,255,0.6)',
+        color: COLORS.outline,
         marginBottom: 12,
-        marginTop: 10,
     },
-    noPresetsText: {
-        color: 'rgba(255,255,255,0.4)',
-        fontStyle: 'italic',
-        paddingVertical: 10,
-    },
-    presetListItem: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        backgroundColor: 'rgba(255,255,255,0.05)',
-        padding: 12,
-        borderRadius: 12,
-        marginBottom: 8,
-    },
-    presetListIcon: {
-        width: 32,
-        height: 32,
-        borderRadius: 16,
-        alignItems: 'center',
-        justifyContent: 'center',
-        marginRight: 12,
-    },
-    presetListLabel: {
-        color: 'white',
+    modalLabelName: {
+        fontSize: 10,
+        color: COLORS.outline,
         fontWeight: 'bold',
-        fontSize: 14,
-    },
-    presetListDetail: {
-        color: 'rgba(255,255,255,0.5)',
-        fontSize: 12,
-        marginTop: 2,
+        letterSpacing: 2,
     },
     input: {
-        backgroundColor: 'rgba(255,255,255,0.06)',
-        borderWidth: 1,
-        borderColor: 'rgba(255,255,255,0.15)',
+        backgroundColor: COLORS.cardBackgroundHigh,
         borderRadius: 12,
         paddingHorizontal: 16,
-        paddingVertical: 14,
-        color: '#fff',
+        paddingVertical: 16,
+        color: COLORS.text,
         fontSize: 16,
+        marginTop: 10,
+        borderWidth: 1,
+        borderColor: COLORS.surfaceContainerHighest,
+    },
+    iconGrid: {
+        flexDirection: 'row',
+        flexWrap: 'wrap',
+        justifyContent: 'flex-start',
+        marginTop: 10,
         marginBottom: 20,
+        gap: 12,
+    },
+    iconBtn: {
+        width: 60,
+        height: 60,
+        borderRadius: 30,
+        backgroundColor: COLORS.surfaceContainerHighest,
+        alignItems: 'center',
+        justifyContent: 'center',
+        borderWidth: 2,
+        borderColor: 'transparent',
+    },
+    iconBtnActive: {
+        borderColor: COLORS.hot,
     },
     saveBtn: {
         backgroundColor: COLORS.hot,
         borderRadius: 16,
         paddingVertical: 16,
         alignItems: 'center',
+        marginTop: 10,
     },
     saveBtnText: {
-        color: '#fff',
+        color: '#1b1205',
         fontSize: 14,
         fontWeight: 'bold',
-        letterSpacing: 1,
+        letterSpacing: 2,
     }
 });
 

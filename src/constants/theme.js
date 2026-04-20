@@ -1,28 +1,34 @@
 export const COLORS = {
   primary: '#1b9b94',         // Legacy
   secondary: '#2ac4bb',       // Legacy
-  backgroundStart: '#04100f', 
-  backgroundEnd: '#051b1a',   
-  text: '#FFFFFF',
-  textSecondary: 'rgba(255, 255, 255, 0.4)',
-  cardBackground: 'rgba(255, 255, 255, 0.05)',
+  backgroundStart: '#0C0500', // Deep intense dark 
+  backgroundEnd: '#1b1205',   
+  text: '#f4dfc7',            // Off-white/beige for text
+  textSecondary: 'rgba(244, 223, 199, 0.4)',
+  cardBackground: '#1b1205',
+  cardBackgroundHigh: '#342818',
   danger: '#ef4444',
-  success: '#10b981',
+  success: '#00E5BC',
   
-  hot: '#f97316',             // Vibrant Orange
-  hotSecondary: '#431407',    // Dark orange track
-  hotBgStart: '#2a1105',      // Hot Mode Background
-  hotBgEnd: '#0a0a0a',        // Hot Mode Background
+  hot: '#FF7A20',             // Vibrant Orange from Stitch
+  hotSecondary: '#431407',    
+  hotBgStart: '#1b1205',      
+  hotBgEnd: '#0C0500',        
 
-  cold: '#3b82f6',            // Clinical Blue
-  coldSecondary: '#1e40af',   // Dark blue track
-  coldBgStart: '#0a192f',     // Cold Mode Background
-  coldBgEnd: '#020617',       // Cold Mode Background
+  cold: '#00E5BC',            // Clinical bright cyan from stitch equivalent? No wait cold in original stitch is different.
+  coldSecondary: '#05312d',   
+  coldBgStart: '#05111b',     
+  coldBgEnd: '#02060C',       
 
-  off: '#374151',             // Gray
+  off: '#a78b7d',             // Muted outline color
   offSecondary: '#111827',
-  offBgStart: '#1a1a1a',      // Off Mode Background
-  offBgEnd: '#0a0a0a',        // Off Mode Background
+  offBgStart: '#1a1a1a',      
+  offBgEnd: '#0a0a0a',        
+
+  outline: '#a78b7d',
+  outlineVariant: '#584237',
+  surfaceContainer: '#281e0f',
+  surfaceContainerHighest: '#3f3322',
 };
 
 export const SPACING = {

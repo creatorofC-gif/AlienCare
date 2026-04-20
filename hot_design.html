@@ -1,141 +1,281 @@
 <!DOCTYPE html>
-
-<html class="h-full" lang="en"><head>
-<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
-<meta charset="utf-8"/>
-<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
-<title>Heat Control Module - Hot Mode</title>
-<!-- Load Tailwind CSS v3 -->
-<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
-<!-- Load Manrope Font -->
-<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&amp;display=swap" rel="stylesheet"/>
-<script>
+<html class="dark h-full" lang="en">
+<head>
+  <meta charset="utf-8"/>
+  <meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+  <title>Heat Control Module - Hot Mode</title>
+  
+  <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&amp;family=Manrope:wght@300;400;500;600;700;800&amp;family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+  
+  <script id="tailwind-config">
     tailwind.config = {
+      darkMode: "class",
       theme: {
         extend: {
-          fontFamily: {
-            sans: ['Manrope', 'sans-serif'],
+          "colors": {
+            "on-error-container": "#ffdad6",
+            "on-surface-variant": "#e0c0b1",
+            "primary": "#ffb68f",
+            "surface": "#1b1205",
+            "on-secondary-fixed-variant": "#693c13",
+            "inverse-surface": "#f4dfc7",
+            "error-container": "#93000a",
+            "surface-container-highest": "#3f3322",
+            "surface-container-lowest": "#160c02",
+            "tertiary-container": "#e6894a",
+            "on-tertiary-fixed": "#321300",
+            "tertiary-fixed": "#ffdbc8",
+            "on-background": "#f4dfc7",
+            "secondary-fixed": "#ffdcc4",
+            "surface-bright": "#443726",
+            "surface-dim": "#1b1205",
+            "on-primary-container": "#5f2600",
+            "on-tertiary-fixed-variant": "#743500",
+            "primary-fixed-dim": "#ffb68f",
+            "primary-fixed": "#ffdbca",
+            "on-error": "#690005",
+            "inverse-on-surface": "#3a2e1e",
+            "surface-container-low": "#241a0b",
+            "on-primary-fixed": "#331100",
+            "primary-container": "#ff7a20",
+            "surface-tint": "#ffb68f",
+            "outline-variant": "#584237",
+            "secondary-container": "#6c3e15",
+            "secondary-fixed-dim": "#fbb885",
+            "secondary": "#fbb885",
+            "on-primary-fixed-variant": "#773200",
+            "on-tertiary": "#522300",
+            "on-secondary-container": "#ecaa78",
+            "on-tertiary-container": "#5c2900",
+            "surface-container-high": "#342818",
+            "tertiary": "#ffb68a",
+            "on-primary": "#542100",
+            "error": "#ffb4ab",
+            "tertiary-fixed-dim": "#ffb68a",
+            "inverse-primary": "#9d4400",
+            "outline": "#a78b7d",
+            "surface-variant": "#3f3322",
+            "on-secondary": "#4e2600",
+            "surface-container": "#281e0f",
+            "on-surface": "#f4dfc7",
+            "background": "#1b1205",
+            "on-secondary-fixed": "#2f1500"
           },
-          colors: {
-            brand: {
-              DEFAULT: '#f97316', // Vibrant Orange (orange-500)
-              dark: '#7c2d12',
-              light: '#fb923c',
-              heat: '#f97316', // Hot orange accent
-            },
-            darkBg: '#0a0a0a', // Deep black background
+          "borderRadius": {
+            "DEFAULT": "1rem",
+            "lg": "2rem",
+            "xl": "3rem",
+            "full": "9999px"
           },
-          borderRadius: {
-            'custom': '8px',
+          "fontFamily": {
+            "headline": ["Space Grotesk"],
+            "body": ["Manrope"],
+            "label": ["Manrope"]
           }
-        }
-      }
+        },
+      },
     }
   </script>
-<style data-purpose="custom-layout">
+  <style>
+    .material-symbols-outlined {
+      font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+    }
     body {
-      background-color: #0a0a0a;
-      background-image: radial-gradient(circle at center, #2a1105 0%, #0a0a0a 100%);
-      color: #ffffff;
-      -webkit-tap-highlight-color: transparent;
+      background-color: #0C0500;
+      color: #f4dfc7;
+      font-family: 'Manrope', sans-serif;
     }
-    
-    /* Visual styling for the temperature dial ring with orange gradient */
-    .dial-ring {
-      background: conic-gradient(from 180deg, #f97316 0%, #431407 70%, #1a1a1a 70%, #1a1a1a 100%);
-      mask: radial-gradient(transparent 65%, black 66%);
-      -webkit-mask: radial-gradient(transparent 65%, black 66%);
+    .scrollbar-hide::-webkit-scrollbar {
+      display: none;
     }
-
-    /* Soft glow for the active temperature indicator - vibrant orange */
-    .glow-effect {
-      box-shadow: 0 0 20px rgba(249, 115, 22, 0.6);
-    }
-    
-    .fire-glow {
-      filter: drop-shadow(0 0 15px rgba(249, 115, 22, 0.5));
-    }
-
-    /* Subtle ambient orange glow for the background depth */
-    .ambient-glow {
-      position: absolute;
-      top: 50%;
-      left: 50%;
-      transform: translate(-50%, -50%);
-      width: 100%;
-      height: 100%;
-      background: radial-gradient(circle, rgba(249, 115, 22, 0.05) 0%, transparent 70%);
-      pointer-events: none;
-      z-index: -1;
+    .scrollbar-hide {
+      -ms-overflow-style: none;
+      scrollbar-width: none;
     }
   </style>
 </head>
-<body class="h-full font-sans antialiased overflow-hidden select-none relative">
-<div class="ambient-glow"></div>
-<!-- BEGIN: Main Container -->
-<main class="flex flex-col h-screen max-w-md mx-auto p-6 justify-between items-center" data-purpose="app-container">
-<!-- BEGIN: Header -->
-<header class="w-full flex justify-between items-center" data-purpose="top-navigation">
-<div class="flex flex-col">
-<button class="p-1.5 rounded-full bg-white/5 hover:bg-white/10 transition-colors w-fit mb-1">
-<svg class="h-5 w-5" fill="none" stroke="currentColor" viewbox="0 0 24 24">
-<path d="M15 19l-7-7 7-7" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"></path>
-</svg>
-</button>
-<span class="text-xs font-medium text-white/40 mt-1">
-<h2 class="text-white text-xl font-bold tracking-tight">Hello, Username</h2>
-</span>
-</div>
-<div class="flex items-center gap-3">
-<button class="px-4 py-1.5 bg-red-500/10 text-red-400 text-xs font-bold rounded-full border border-red-500/20 uppercase tracking-widest">Off</button>
-<button class="p-2 text-white/60 hover:text-white">
-<span class="material-symbols-outlined text-2xl">settings</span>
-</button>
-</div>
-</header>
-<div class="w-full flex justify-center mt-2" data-purpose="mode-toggle">
-<div class="flex bg-white/5 p-1 rounded-full border border-white/10 w-44">
-<button class="flex-1 py-2 text-[10px] font-bold uppercase tracking-wider rounded-full bg-brand text-white shadow-sm shadow-brand/20">Hot</button>
-<button class="flex-1 py-2 text-[10px] font-bold uppercase tracking-wider rounded-full text-white/40 hover:text-white/60 transition-colors">Cold</button>
-</div>
-</div>
-<!-- END: Header -->
-<!-- BEGIN: Temperature Dial -->
-<section class="relative flex flex-col items-center justify-center w-full py-6" data-purpose="temperature-display-section">
-<!-- Outer Dial Circle -->
-<div class="relative w-72 h-72 rounded-full flex items-center justify-center border-4 border-white/5 shadow-2xl shadow-orange-900/10">
-<!-- Progress Ring (Stylized Conic Gradient) -->
-<div class="absolute inset-2 rounded-full dial-ring opacity-90"></div>
-<!-- Rotating Indicator Pin (Large dot-shaped knob) -->
-<div class="absolute inset-0 flex items-start justify-center rotate-[120deg]" style="transform: rotate(120deg);">
-<div class="w-5 h-5 bg-brand-light rounded-full glow-effect -translate-y-2 border-2 border-white/20"></div>
-</div>
-<!-- Central Temperature Display -->
-<div class="flex flex-col items-center z-10 text-center">
-<span class="text-6xl font-extrabold tracking-tighter" id="current-temp">42°C</span>
-<span class="text-3xl font-mono font-bold tracking-widest mt-2 text-white/90">14:59</span>
-<button class="mt-6 px-5 py-2 text-[10px] font-bold uppercase tracking-widest bg-brand/10 border border-brand/30 text-brand-light rounded-full hover:bg-brand/20 transition-colors" data-purpose="set-timer-button">
-  Set Timer
-</button>
-</div>
-</div>
-</section>
-<!-- END: Temperature Dial -->
-<!-- BEGIN: Timer and Presets -->
-<section class="w-full pb-8" data-purpose="controls-bottom">
-<div class="flex rounded-2xl w-full mb-4" data-purpose="control-mode-selector">
-<button class="w-full py-5 text-[12px] font-bold uppercase tracking-[0.2em] rounded-xl bg-brand text-white shadow-lg shadow-brand/30 transition-all hover:bg-brand-light active:scale-[0.98]">Custom Preset</button>
-</div>
-</section>
-<!-- END: Timer and Presets -->
-<!-- BEGIN: Bottom Interaction Bar -->
-<footer class="w-full pb-2" data-purpose="bottom-bar">
-<div class="h-1.5 w-32 bg-white/20 rounded-full mx-auto"></div>
-</footer>
-<!-- END: Bottom Interaction Bar -->
-</main>
-<!-- END: Main Container -->
-<script data-purpose="ui-logic">
-    console.log("Vibrant Hot Module UI - Centered Temp and Timer Display");
-</script>
-</body></html>
+
+<body class="min-h-screen flex flex-col items-center bg-[#0C0500] select-none h-full overflow-y-auto pb-40">
+  
+  <main class="w-full max-w-md flex flex-col items-center px-6 pt-20" data-purpose="app-container">
+    
+    <!-- TopAppBar -->
+    <header data-purpose="top-navigation" class="fixed top-0 left-0 w-full z-50 flex justify-between items-center px-6 py-4 bg-gradient-to-b from-[#1b1205] to-transparent">
+      <button class="flex items-center justify-center p-2 rounded-full surface-container-high hover:opacity-80 transition-opacity active:scale-95 duration-200">
+        <span class="material-symbols-outlined text-[#FF7A20]" data-icon="power_settings_new">power_settings_new</span>
+      </button>
+      
+      <div class="flex flex-col items-center">
+        <h1 class="font-headline tracking-tighter uppercase font-bold text-[#FF7A20] text-base leading-tight">HELLO, USERNAME</h1>
+        <span class="text-[10px] font-label font-bold tracking-[0.1em] text-[#00E5BC] mt-0.5" id="conn-status">● CONNECTED</span>
+      </div>
+      
+      <button class="flex items-center justify-center p-2 rounded-full hover:opacity-80 transition-opacity active:scale-95 duration-200">
+        <span class="material-symbols-outlined text-[#FF7A20]" data-icon="settings">settings</span>
+      </button>
+    </header>
+
+    <!-- Mode Toggle -->
+    <div data-purpose="mode-toggle" class="w-full max-w-[240px] bg-surface-container-high rounded-full p-1 flex items-center mb-10 mt-4">
+      <button class="flex-1 py-2 rounded-full bg-primary-container text-on-primary-fixed font-headline font-bold text-xs tracking-wider active:scale-95 transition-all">HOT</button>
+      <button class="flex-1 py-2 rounded-full text-outline font-headline font-bold text-xs tracking-wider active:scale-95 transition-all">COLD</button>
+    </div>
+
+    <!-- Central Temperature Dial -->
+    <section data-purpose="temperature-display-section" class="relative w-72 h-72 flex items-center justify-center rounded-full p-2 mb-8">
+      <!-- Glow Layer -->
+      <div class="absolute inset-0 rounded-full border-[12px] border-surface-container opacity-20"></div>
+      
+      <!-- Progress Arc -->
+      <svg class="absolute inset-0 w-full h-full -rotate-90" viewBox="0 0 100 100">
+        <circle cx="50" cy="50" fill="none" r="44" stroke="#281e0f" stroke-width="8"></circle>
+        <circle cx="50" cy="50" fill="none" r="44" stroke="#ff7a20" stroke-dasharray="210 276" stroke-linecap="round" stroke-width="8"></circle>
+        <!-- Head Glow -->
+        <circle class="filter drop-shadow-[0_0_8px_#ff7a20]" cx="94" cy="50" fill="#f4dfc7" r="4" transform="rotate(272 50 50)"></circle>
+      </svg>
+      
+      <!-- Center Content -->
+      <div class="z-10 flex flex-col items-center">
+        <span class="text-[10px] font-label font-extrabold tracking-[0.2em] text-outline mb-1">INTENSITY</span>
+        <div class="flex items-start">
+          <span class="font-headline text-7xl font-bold tracking-tighter text-on-surface" id="current-temp">37</span>
+          <span class="font-headline text-2xl font-bold text-primary-container mt-2">°C</span>
+        </div>
+        <div class="flex items-center gap-1 mt-2 text-primary">
+          <span class="material-symbols-outlined text-sm" data-icon="timer">timer</span>
+          <span class="font-headline text-xl font-medium tracking-tight">14:59</span>
+        </div>
+        <button data-purpose="set-timer-button" class="mt-6 px-5 py-1.5 rounded-full border border-outline-variant text-[10px] font-label font-extrabold tracking-widest text-on-surface hover:bg-surface-container-highest transition-colors uppercase">
+          SET TIMER
+        </button>
+      </div>
+    </section>
+
+    <!-- Current Program Info -->
+    <div class="w-full mb-8">
+      <div class="bg-surface-container rounded-lg p-4 flex flex-col items-start gap-3 border-l-4 border-primary-container">
+        <span class="text-[10px] font-label font-bold tracking-widest text-outline uppercase">CURRENT PROGRAM</span>
+        <div class="flex flex-col">
+          <span class="font-headline text-lg font-bold text-on-surface leading-none">Manual Mode</span>
+          <span class="text-xs text-outline mt-1 font-body">Adaptive heat therapy active</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Custom Preset Section -->
+    <section class="w-full flex flex-col gap-4" data-purpose="controls-bottom">
+      <div class="flex items-center justify-between">
+        <h2 class="font-headline text-sm font-bold tracking-widest text-primary-container uppercase">CUSTOM PRESETS</h2>
+        <button id="btn-add-preset" class="text-[10px] font-label font-bold text-outline hover:text-primary-container uppercase transition-colors" onclick="document.getElementById('preset-modal').classList.remove('hidden')">
+          + ADD NEW
+        </button>
+      </div>
+      
+      <div class="grid grid-cols-2 gap-3" data-purpose="control-mode-selector" id="preset-grid">
+        <!-- Dynmic presets will go here. A default one is provided -->
+        <button class="flex flex-col items-start p-4 bg-surface-container-high rounded-2xl border border-transparent hover:border-primary-container transition-all active:scale-95 group">
+          <span class="material-symbols-outlined text-primary-container mb-2 group-hover:scale-110 transition-transform" data-icon="fitness_center">fitness_center</span>
+          <span class="text-xs font-bold font-headline text-on-surface">Workout Mode</span>
+        </button>
+      </div>
+    </section>
+
+  </main>
+
+  <footer data-purpose="bottom-bar" class="fixed bottom-0 left-0 w-full z-50 flex justify-center items-center px-8 pb-10 pt-4 bg-[#1b1205]/90 backdrop-blur-md rounded-t-[2.5rem] shadow-[0_-8px_24px_rgba(105,60,19,0.1)]">
+    <div class="flex items-center gap-16">
+      <div class="flex flex-col items-center gap-1">
+        <div class="flex items-center justify-center bg-[#FF7A20] text-[#0C0500] rounded-full w-14 h-14 shadow-[0_0_15px_#FF7A20] active:scale-90 transition-all duration-300">
+          <span class="material-symbols-outlined text-3xl" data-icon="mode_heat" style='font-variation-settings: "FILL" 1;'>mode_heat</span>
+        </div>
+        <span class="text-[10px] font-headline font-bold tracking-widest text-primary-container">HOT</span>
+      </div>
+      <div class="flex flex-col items-center gap-1 opacity-40">
+        <div class="flex items-center justify-center text-outline rounded-full w-14 h-14 hover:text-[#ffb68f] transition-all active:scale-90 duration-300">
+          <span class="material-symbols-outlined text-3xl" data-icon="ac_unit">ac_unit</span>
+        </div>
+        <span class="text-[10px] font-headline font-bold tracking-widest text-outline">COLD</span>
+      </div>
+    </div>
+  </footer>
+
+  <!-- Add Custom Preset Modal -->
+  <div id="preset-modal" class="hidden fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm transition-opacity">
+    <div class="bg-surface-container w-full max-w-sm rounded-3xl p-6 shadow-2xl border border-white/5">
+      <div class="flex justify-between items-center mb-6">
+        <h3 class="font-headline text-lg font-bold text-on-surface">New Preset</h3>
+        <button onclick="document.getElementById('preset-modal').classList.add('hidden')" class="text-outline hover:text-white">
+          <span class="material-symbols-outlined">close</span>
+        </button>
+      </div>
+      
+      <div class="space-y-4">
+        <div>
+          <label class="block text-[10px] font-label font-bold text-outline uppercase mb-2">Preset Name</label>
+          <input type="text" id="preset-name" placeholder="e.g. Morning Routine" class="w-full bg-surface-container-highest border border-outline-variant/30 rounded-xl px-4 py-3 text-sm text-white placeholder-outline/50 focus:border-primary-container focus:ring-1 focus:ring-primary-container outline-none transition-all">
+        </div>
+        
+        <div>
+          <label class="block text-[10px] font-label font-bold text-outline uppercase mb-2">Select Icon</label>
+          <div class="grid grid-cols-4 gap-2" id="icon-selector">
+            <button class="icon-btn p-3 bg-surface-container-highest rounded-xl text-outline border border-transparent focus:border-primary-container focus:text-primary-container active:scale-95 transition-all"><span class="material-symbols-outlined">fitness_center</span></button>
+            <button class="icon-btn p-3 bg-surface-container-highest rounded-xl text-outline border border-transparent focus:border-primary-container focus:text-primary-container active:scale-95 transition-all"><span class="material-symbols-outlined">self_improvement</span></button>
+            <button class="icon-btn p-3 bg-surface-container-highest rounded-xl text-outline border border-transparent focus:border-primary-container focus:text-primary-container active:scale-95 transition-all"><span class="material-symbols-outlined">bolt</span></button>
+            <button class="icon-btn p-3 bg-surface-container-highest rounded-xl text-outline border border-transparent focus:border-primary-container focus:text-primary-container active:scale-95 transition-all"><span class="material-symbols-outlined">spa</span></button>
+            <button class="icon-btn p-3 bg-surface-container-highest rounded-xl text-outline border border-transparent focus:border-primary-container focus:text-primary-container active:scale-95 transition-all"><span class="material-symbols-outlined">water_drop</span></button>
+            <button class="icon-btn p-3 bg-surface-container-highest rounded-xl text-outline border border-transparent focus:border-primary-container focus:text-primary-container active:scale-95 transition-all"><span class="material-symbols-outlined">thermostat</span></button>
+            <button class="icon-btn p-3 bg-surface-container-highest rounded-xl text-outline border border-transparent focus:border-primary-container focus:text-primary-container active:scale-95 transition-all"><span class="material-symbols-outlined">favorite</span></button>
+            <button class="icon-btn p-3 bg-surface-container-highest rounded-xl text-outline border border-transparent focus:border-primary-container focus:text-primary-container active:scale-95 transition-all"><span class="material-symbols-outlined">star</span></button>
+          </div>
+        </div>
+        
+        <button onclick="savePreset()" class="w-full py-4 mt-4 bg-primary-container text-on-primary-fixed font-headline font-bold text-sm tracking-widest rounded-xl hover:opacity-90 active:scale-[0.98] transition-all">
+          SAVE PRESET
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Decorative Texture Overlay -->
+  <div class="fixed inset-0 pointer-events-none opacity-[0.03] mix-blend-overlay">
+    <img class="w-full h-full object-cover" src="https://lh3.googleusercontent.com/aida-public/AB6AXuBsqKkC-a84S87r_ILVpo-FlmYM2UNjbf6gs2TQ0a2E8WVkH4YKtS2ngNjU5_sUW1Liz8l1Pd90HWVIFD90_GfBhlAPv-n4CXW2sPQxGFcWjRhaGjMLNNkyKRQzMGOTJDi6GDgeyh7GgFFdM9uqZbnRgoDrCL17kKUJUFsLYQume5zWxY91nNPXTkocfm-q8_BsQdfN0avLyHpKjsKP4qFLZjwM29ashBN-efyiVwbP97p1bU222--2QMwsYDKjYB0Iqwo2JLAV8g"/>
+  </div>
+
+  <script data-purpose="ui-logic">
+    console.log("Vibrant Hot Module UI - Initialized with Stitch Layout & Custom Preset Modal");
+    
+    // Icon selection logic
+    let selectedIcon = "stars";
+    const iconBtns = document.querySelectorAll('.icon-btn');
+    iconBtns.forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        // Reset all styles
+        iconBtns.forEach(b => {
+          b.classList.remove('border-primary-container', 'text-primary-container');
+        });
+        // Set active style
+        const targetBtn = e.currentTarget;
+        targetBtn.classList.add('border-primary-container', 'text-primary-container');
+        selectedIcon = targetBtn.querySelector('span').innerText;
+      });
+    });
+
+    function savePreset() {
+      const name = document.getElementById('preset-name').value || "New Preset";
+      const grid = document.getElementById('preset-grid');
+      
+      const newPreset = document.createElement('button');
+      newPreset.className = "flex flex-col items-start p-4 bg-surface-container-low rounded-2xl border border-transparent hover:border-primary-container transition-all active:scale-95 group";
+      newPreset.innerHTML = `
+        <span class="material-symbols-outlined text-outline mb-2 group-hover:text-primary-container transition-colors">${selectedIcon}</span>
+        <span class="text-xs font-bold font-headline text-on-surface">${name}</span>
+      `;
+      
+      grid.appendChild(newPreset);
+      document.getElementById('preset-modal').classList.add('hidden');
+      document.getElementById('preset-name').value = '';
+    }
+  </script>
+</body>
+</html>

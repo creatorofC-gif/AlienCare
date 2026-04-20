@@ -1,148 +1,294 @@
 <!DOCTYPE html>
-
-<html class="h-full" lang="en"><head>
-<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
-<meta charset="utf-8"/>
-<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
-<title>Heat Control Module - Cold Mode</title>
-<!-- Load Tailwind CSS v3 -->
-<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
-<!-- Load Manrope Font -->
-<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&amp;display=swap" rel="stylesheet"/>
-<script>
+<html class="dark h-full" lang="en">
+<head>
+  <meta charset="utf-8"/>
+  <meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+  <title>Heat Control Module - Cold Mode</title>
+  
+  <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&amp;family=Manrope:wght@300;400;500;600;700;800&amp;display=swap" rel="stylesheet"/>
+  <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+  
+  <script id="tailwind-config">
     tailwind.config = {
+      darkMode: "class",
       theme: {
         extend: {
-          fontFamily: {
-            sans: ['Manrope', 'sans-serif'],
+          "colors": {
+            "on-error-container": "#ffdad6",
+            "on-surface-variant": "#e0c0b1",
+            "primary": "#ffb68f",
+            "surface": "#1b1205",
+            "on-secondary-fixed-variant": "#693c13",
+            "inverse-surface": "#f4dfc7",
+            "error-container": "#93000a",
+            "surface-container-highest": "#3f3322",
+            "on-tertiary-fixed": "#321300",
+            "surface-container-lowest": "#160c02",
+            "tertiary-fixed": "#ffdbc8",
+            "on-background": "#f4dfc7",
+            "secondary-fixed": "#ffdcc4",
+            "surface-bright": "#443726",
+            "surface-dim": "#1b1205",
+            "on-primary-container": "#5f2600",
+            "on-tertiary-fixed-variant": "#743500",
+            "primary-fixed-dim": "#ffb68f",
+            "primary-fixed": "#ffdbca",
+            "on-error": "#690005",
+            "inverse-on-surface": "#3a2e1e",
+            "surface-container-low": "#241a0b",
+            "on-primary-fixed": "#331100",
+            "primary-container": "#ff7a20",
+            "surface-tint": "#ffb68f",
+            "outline-variant": "#584237",
+            "secondary-container": "#6c3e15",
+            "secondary-fixed-dim": "#fbb885",
+            "secondary": "#fbb885",
+            "on-primary-fixed-variant": "#773200",
+            "on-tertiary": "#522300",
+            "on-secondary-container": "#ecaa78",
+            "on-tertiary-container": "#5c2900",
+            "surface-container-high": "#342818",
+            "tertiary": "#ffb68a",
+            "on-primary": "#542100",
+            "error": "#ffb4ab",
+            "tertiary-fixed-dim": "#ffb68a",
+            "inverse-primary": "#9d4400",
+            "outline": "#a78b7d",
+            "surface-variant": "#3f3322",
+            "on-secondary": "#4e2600",
+            "surface-container": "#281e0f",
+            "on-surface": "#f4dfc7",
+            "background": "#1b1205",
+            "on-secondary-fixed": "#2f1500"
           },
-          colors: {
-            brand: {
-              DEFAULT: '#2563eb', // Clean Professional Blue (blue-600)
-              dark: '#1e3a8a',
-              light: '#60a5fa',
-              blue: '#3b82f6', // Cold blue accent
-            },
-            darkBg: '#020617', // Deeper, crisp slate-black background
+          "borderRadius": {
+            "DEFAULT": "1rem",
+            "lg": "2rem",
+            "xl": "3rem",
+            "full": "9999px"
           },
-          borderRadius: {
-            'custom': '8px',
+          "fontFamily": {
+            "headline": ["Space Grotesk"],
+            "body": ["Manrope"],
+            "label": ["Manrope"]
+          },
+          "animation": {
+            "thermal-pulse": "thermal-pulse 3s ease-in-out infinite",
+          },
+          "keyframes": {
+            "thermal-pulse": {
+              "0%, 100%": { transform: "scale(1)", opacity: "1", filter: "drop-shadow(0 0 15px rgba(255,122,32,0.6))" },
+              "50%": { transform: "scale(1.08)", opacity: "0.9", filter: "drop-shadow(0 0 25px rgba(255,122,32,0.8))" },
+            }
           }
-        }
-      }
+        },
+      },
     }
   </script>
-<style data-purpose="custom-layout">
+  <style>
+    .material-symbols-outlined {
+      font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+      display: inline-block;
+      line-height: 1;
+      text-transform: none;
+      letter-spacing: normal;
+      word-wrap: normal;
+      white-space: nowrap;
+      direction: ltr;
+    }
+    .thermal-glow {
+      box-shadow: 0 0 40px -10px rgba(255, 122, 32, 0.4);
+    }
     body {
-      background-color: #020617;
-      background-image: radial-gradient(circle at center, #0a192f 0%, #020617 100%);
-      color: #ffffff;
+      min-height: max(884px, 100dvh);
       -webkit-tap-highlight-color: transparent;
     }
-    
-    /* Visual styling for the temperature dial ring with blue gradient */
-    .dial-ring {
-      background: conic-gradient(from 180deg, #3b82f6 0%, #1e40af 70%, #0f172a 70%, #0f172a 100%);
-      mask: radial-gradient(transparent 65%, black 66%);
-      -webkit-mask: radial-gradient(transparent 65%, black 66%);
+    .scrollbar-hide::-webkit-scrollbar {
+      display: none;
     }
-
-    /* Soft glow for the active temperature indicator - clinical blue */
-    .glow-effect {
-      box-shadow: 0 0 20px rgba(59, 130, 246, 0.6);
-    }
-    
-    .snowflake-glow {
-      filter: drop-shadow(0 0 12px rgba(59, 130, 246, 0.4));
-    }
-
-    /* Subtle ambient blue glow for the background depth */
-    .ambient-glow {
-      position: absolute;
-      top: 50%;
-      left: 50%;
-      transform: translate(-50%, -50%);
-      width: 100%;
-      height: 100%;
-      background: radial-gradient(circle, rgba(37, 99, 235, 0.05) 0%, transparent 70%);
-      pointer-events: none;
-      z-index: -1;
+    .scrollbar-hide {
+      -ms-overflow-style: none;
+      scrollbar-width: none;
     }
   </style>
 </head>
-<body class="h-full font-sans antialiased overflow-hidden select-none relative">
-<div class="ambient-glow"></div>
-<!-- BEGIN: Main Container -->
-<main class="flex flex-col h-screen max-w-md mx-auto p-6 justify-between items-center" data-purpose="app-container">
-<!-- BEGIN: Header -->
-<header class="w-full flex justify-between items-center" data-purpose="top-navigation">
-<div class="flex flex-col">
-<button class="p-1.5 rounded-full bg-white/5 hover:bg-white/10 transition-colors w-fit mb-1">
-<svg class="h-5 w-5" fill="none" stroke="currentColor" viewbox="0 0 24 24">
-<path d="M15 19l-7-7 7-7" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"></path>
-</svg>
-</button>
-<span class="text-xs font-medium text-white/40 mt-1">
-<h2 class="text-white text-xl font-bold tracking-tight" data-stitch-added-classes="cursor-text" spellcheck="false" style="outline: none !important;">Hello, Username</h2>
-</span>
-</div>
-<div class="flex items-center gap-3">
-<button class="px-4 py-1.5 bg-red-500/10 text-red-400 text-xs font-bold rounded-full border border-red-500/20 uppercase tracking-widest">Off</button>
-<button class="p-2 text-white/60 hover:text-white">
-<span class="material-symbols-outlined text-2xl">settings</span>
-</button>
-</div>
-</header>
-<div class="w-full flex justify-center mt-2" data-purpose="mode-toggle">
-<div class="flex bg-white/5 p-1 rounded-full border border-white/10 w-44">
-<button class="flex-1 py-2 text-[10px] font-bold uppercase tracking-wider rounded-full text-white/40 hover:text-white/60 transition-colors">Hot</button>
-<button class="flex-1 py-2 text-[10px] font-bold uppercase tracking-wider rounded-full bg-brand text-white shadow-sm shadow-brand/20">Cold</button>
-</div>
-</div>
-<!-- END: Header -->
-<!-- BEGIN: Temperature Dial -->
-<section class="relative flex flex-col items-center justify-center w-full py-6" data-purpose="temperature-display-section">
-<!-- Outer Dial Circle -->
-<div class="relative w-72 h-72 rounded-full flex items-center justify-center border-4 border-white/5 shadow-2xl shadow-blue-900/10">
-<!-- Progress Ring (Stylized Conic Gradient) -->
-<div class="absolute inset-2 rounded-full dial-ring opacity-90"></div>
-<!-- Rotating Indicator Pin (Large dot-shaped knob) -->
-<div class="absolute inset-0 flex items-start justify-center rotate-[120deg]" style="transform: rotate(120deg);">
-<div class="w-4 h-4 bg-brand-blue rounded-full glow-effect -translate-y-2 border-2 border-white/20"></div>
-</div>
-<!-- Central Temperature Display -->
-<div class="flex flex-col items-center z-10 text-center">
-<!-- Large Snowflake Icon -->
-<svg class="w-32 h-32 text-brand-blue snowflake-glow" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.25" viewbox="0 0 24 24">
-<line x1="12" x2="12" y1="2" y2="22"></line>
-<line x1="20" x2="4" y1="12" y2="12"></line>
-<line x1="4.93" x2="19.07" y1="4.93" y2="19.07"></line>
-<line x1="4.93" x2="19.07" y1="19.07" y2="4.93"></line>
-<path d="M12 8l3-3 3 3"></path>
-<path d="M16 12l3 3-3 3"></path>
-<path d="M12 16l-3 3-3-3"></path>
-<path d="M8 12l-3-3-3 3"></path>
-</svg>
-</div>
-</div>
-</section>
-<!-- END: Temperature Dial -->
-<!-- BEGIN: Timer and Presets -->
-<section class="w-full pb-8" data-purpose="controls-bottom">
-<div class="flex rounded-2xl w-full mb-4" data-purpose="control-mode-selector">
-<button class="w-full py-5 text-[12px] font-bold uppercase tracking-[0.2em] rounded-xl bg-brand text-white shadow-lg shadow-brand/30 transition-all hover:bg-brand-light active:scale-[0.98]">Custom Preset</button>
-</div>
-</section>
-<!-- END: Timer and Presets -->
-<!-- BEGIN: Bottom Interaction Bar -->
-<footer class="w-full pb-2" data-purpose="bottom-bar">
-<div class="h-1.5 w-32 bg-white/20 rounded-full mx-auto"></div>
-</footer>
-<!-- END: Bottom Interaction Bar -->
-</main>
-<!-- END: Main Container -->
-<!-- JavaScript for minor interactivity simulations -->
-<script data-purpose="ui-logic">
-    console.log("Heat Control UI - Deep Blue Theme Updated");
+
+<body class="bg-[#0C0500] text-on-surface font-body selection:bg-primary-container selection:text-on-primary-container min-h-screen flex flex-col overflow-x-hidden pb-40">
+  
+  <main class="w-full flex-1 flex flex-col items-center px-6 pt-8 max-w-lg mx-auto" data-purpose="app-container">
+    
+    <!-- TopAppBar -->
+    <nav data-purpose="top-navigation" class="bg-[#0C0500] dark:bg-[#0C0500] docked fixed top-0 left-0 bg-gradient-to-b from-[#1b1205] to-transparent flex justify-between items-center w-full px-6 py-4 z-50">
+      <!-- Leading: OFF Button -->
+      <button class="flex items-center gap-1 group transition-transform active:scale-95 duration-200">
+        <span class="material-symbols-outlined text-[#FF7A20]" data-icon="power_settings_new">power_settings_new</span>
+        <span class="font-headline font-bold text-xs tracking-widest text-[#FF7A20] uppercase">OFF</span>
+      </button>
+      
+      <!-- Headline & Status -->
+      <div class="flex flex-col items-center">
+        <h1 class="font-['Space_Grotesk'] tracking-tighter uppercase font-bold text-[#FF7A20] text-lg leading-tight">HELLO, USERNAME</h1>
+        <div class="flex items-center gap-1.5 mt-0.5" id="conn-status">
+          <span class="w-1.5 h-1.5 rounded-full bg-[#00E5BC] shadow-[0_0_8px_#00E5BC]"></span>
+          <span class="font-label text-[10px] font-extrabold tracking-[0.1em] text-[#00E5BC]">CONNECTED</span>
+        </div>
+      </div>
+      
+      <!-- Trailing: Settings -->
+      <button class="hover:opacity-80 transition-opacity active:scale-95 duration-200">
+        <span class="material-symbols-outlined text-[#FF7A20]" data-icon="settings">settings</span>
+      </button>
+    </nav>
+
+    <!-- Mode Toggle Pill -->
+    <div data-purpose="mode-toggle" class="bg-surface-container-high p-1.5 rounded-full flex items-center w-full max-w-[240px] mb-12 shadow-inner mt-24">
+      <button class="flex-1 py-2.5 rounded-full bg-primary-container text-on-primary-fixed font-headline font-bold text-xs tracking-widest thermal-glow transition-all">COLD</button>
+      <button class="flex-1 py-2.5 rounded-full text-outline font-headline font-bold text-xs tracking-widest hover:text-on-surface transition-all">HOT</button>
+    </div>
+
+    <!-- Centerpiece: Circular Cooling Hub -->
+    <section data-purpose="temperature-display-section" class="relative flex flex-col items-center justify-center w-full aspect-square max-w-[280px] mb-12">
+      <!-- Decorative Orbitals -->
+      <div class="absolute inset-0 border-[1px] border-outline-variant/20 rounded-full scale-110"></div>
+      <div class="absolute inset-0 border-[2px] border-primary-container/10 rounded-full animate-pulse"></div>
+      
+      <!-- Main Content Container with Breathing Pulse -->
+      <div class="relative z-10 flex flex-col items-center text-center">
+        <span class="font-label text-[10px] font-black tracking-[0.25em] text-primary-fixed mb-3">COOLING</span>
+        <div class="w-28 h-28 rounded-full flex items-center justify-center bg-surface-container-highest shadow-[inset_0_2px_10px_rgba(0,0,0,0.5)] mb-4 border border-outline-variant/10 animate-thermal-pulse">
+          <span class="material-symbols-outlined text-primary-container !text-5xl" data-icon="ac_unit" style="font-variation-settings: 'FILL' 1;">ac_unit</span>
+        </div>
+        <p class="font-body text-secondary text-[13px] font-medium tracking-wide mb-0.5">Device Active</p>
+        <h2 class="font-headline text-2xl font-bold text-on-surface tracking-tight" id="current-temp-state">Steady Cold</h2>
+      </div>
+      
+      <!-- Emissive Gradient Background -->
+      <div class="absolute inset-0 bg-gradient-to-t from-primary-container/5 to-transparent rounded-full -z-10 blur-3xl opacity-30"></div>
+    </section>
+
+    <!-- Custom Preset Options Section -->
+    <section class="w-full flex flex-col gap-4" data-purpose="controls-bottom">
+      <div class="flex items-center justify-between px-2">
+        <span class="font-label text-[10px] font-bold tracking-[0.15em] text-outline uppercase">CUSTOM PRESETS</span>
+        <button id="btn-add-preset" class="text-[10px] font-bold text-primary-container tracking-widest hover:opacity-80 transition-opacity" onclick="document.getElementById('preset-modal').classList.remove('hidden')">
+          + ADD NEW
+        </button>
+      </div>
+
+      <div class="grid grid-cols-2 gap-3" data-purpose="control-mode-selector" id="preset-grid">
+        <!-- Preset 1 (Active) -->
+        <button class="bg-surface-container border-l-4 border-primary-container p-4 rounded-lg flex flex-col items-start gap-1 transition-all active:scale-95 text-left group">
+          <div class="flex items-center gap-2 mb-1 text-primary-container">
+            <span class="material-symbols-outlined text-[1rem]">ac_unit</span>
+            <span class="font-headline text-sm font-bold text-on-surface">Deep Freeze</span>
+          </div>
+          <span class="text-[10px] text-outline font-body leading-tight">Custom Config</span>
+        </button>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- BottomNavBar -->
+  <footer data-purpose="bottom-bar" class="fixed bottom-0 left-0 w-full z-50 flex justify-center items-center px-8 pb-10 pt-4 bg-[#1b1205]/90 backdrop-blur-md rounded-t-[2.5rem] shadow-[0_-8px_24px_rgba(105,60,19,0.1)]">
+    <div class="flex items-center gap-16">
+      <div class="flex flex-col items-center gap-1 opacity-40">
+        <div class="flex items-center justify-center text-outline rounded-full w-14 h-14 hover:text-[#ffb68f] transition-all active:scale-90 duration-300">
+          <span class="material-symbols-outlined text-3xl" data-icon="mode_heat">mode_heat</span>
+        </div>
+        <span class="text-[10px] font-headline font-bold tracking-widest text-outline uppercase">HOT</span>
+      </div>
+      <div class="flex flex-col items-center gap-1">
+        <div class="flex items-center justify-center bg-[#FF7A20] text-[#0C0500] rounded-full w-14 h-14 shadow-[0_0_15px_#FF7A20] active:scale-90 transition-all duration-300">
+          <span class="material-symbols-outlined text-3xl" data-icon="ac_unit" style='font-variation-settings: "FILL" 1;'>ac_unit</span>
+        </div>
+        <span class="text-[10px] font-headline font-bold tracking-widest text-primary-container uppercase">COLD</span>
+      </div>
+    </div>
+  </footer>
+
+  <!-- Contextual Aesthetic Overlay -->
+  <div class="fixed top-0 left-0 w-full h-full pointer-events-none -z-20 overflow-hidden">
+    <!-- Thermal Heatmap Grain -->
+    <div class="absolute top-1/4 -right-20 w-80 h-80 bg-[#FF7A20] opacity-[0.03] blur-[100px] rounded-full"></div>
+    <div class="absolute bottom-1/4 -left-20 w-96 h-96 bg-[#ffb68f] opacity-[0.02] blur-[120px] rounded-full"></div>
+  </div>
+
+  <!-- Add Custom Preset Modal -->
+  <div id="preset-modal" class="hidden fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm transition-opacity">
+    <div class="bg-surface-container w-full max-w-sm rounded-3xl p-6 shadow-2xl border border-white/5">
+      <div class="flex justify-between items-center mb-6">
+        <h3 class="font-headline text-lg font-bold text-on-surface">New Preset</h3>
+        <button onclick="document.getElementById('preset-modal').classList.add('hidden')" class="text-outline hover:text-white">
+          <span class="material-symbols-outlined">close</span>
+        </button>
+      </div>
+      
+      <div class="space-y-4">
+        <div>
+          <label class="block text-[10px] font-label font-bold text-outline uppercase mb-2">Preset Name</label>
+          <input type="text" id="preset-name" placeholder="e.g. Morning Routine" class="w-full bg-surface-container-highest border border-outline-variant/30 rounded-xl px-4 py-3 text-sm text-white placeholder-outline/50 focus:border-primary-container focus:ring-1 focus:ring-primary-container outline-none transition-all">
+        </div>
+        
+        <div>
+          <label class="block text-[10px] font-label font-bold text-outline uppercase mb-2">Select Icon</label>
+          <div class="grid grid-cols-4 gap-2" id="icon-selector">
+            <button class="icon-btn p-3 bg-surface-container-highest rounded-xl text-outline border border-transparent focus:border-primary-container focus:text-primary-container active:scale-95 transition-all"><span class="material-symbols-outlined">ac_unit</span></button>
+            <button class="icon-btn p-3 bg-surface-container-highest rounded-xl text-outline border border-transparent focus:border-primary-container focus:text-primary-container active:scale-95 transition-all"><span class="material-symbols-outlined">Severe_Cold</span></button>
+            <button class="icon-btn p-3 bg-surface-container-highest rounded-xl text-outline border border-transparent focus:border-primary-container focus:text-primary-container active:scale-95 transition-all"><span class="material-symbols-outlined">water_drop</span></button>
+            <button class="icon-btn p-3 bg-surface-container-highest rounded-xl text-outline border border-transparent focus:border-primary-container focus:text-primary-container active:scale-95 transition-all"><span class="material-symbols-outlined">waves</span></button>
+            <button class="icon-btn p-3 bg-surface-container-highest rounded-xl text-outline border border-transparent focus:border-primary-container focus:text-primary-container active:scale-95 transition-all"><span class="material-symbols-outlined">spa</span></button>
+            <button class="icon-btn p-3 bg-surface-container-highest rounded-xl text-outline border border-transparent focus:border-primary-container focus:text-primary-container active:scale-95 transition-all"><span class="material-symbols-outlined">fitness_center</span></button>
+            <button class="icon-btn p-3 bg-surface-container-highest rounded-xl text-outline border border-transparent focus:border-primary-container focus:text-primary-container active:scale-95 transition-all"><span class="material-symbols-outlined">favorite</span></button>
+            <button class="icon-btn p-3 bg-surface-container-highest rounded-xl text-outline border border-transparent focus:border-primary-container focus:text-primary-container active:scale-95 transition-all"><span class="material-symbols-outlined">star</span></button>
+          </div>
+        </div>
+        
+        <button onclick="savePreset()" class="w-full py-4 mt-4 bg-primary-container text-on-primary-fixed font-headline font-bold text-sm tracking-widest rounded-xl hover:opacity-90 active:scale-[0.98] transition-all">
+          SAVE PRESET
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <script data-purpose="ui-logic">
+    console.log("Cold Module UI - Deep Blue Theme Updated With Stitch Layout");
+    
+    // Icon selection logic
+    let selectedIcon = "ac_unit";
+    const iconBtns = document.querySelectorAll('.icon-btn');
+    iconBtns.forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        // Reset all styles
+        iconBtns.forEach(b => {
+          b.classList.remove('border-primary-container', 'text-primary-container');
+        });
+        // Set active style
+        const targetBtn = e.currentTarget;
+        targetBtn.classList.add('border-primary-container', 'text-primary-container');
+        selectedIcon = targetBtn.querySelector('span').innerText;
+      });
+    });
+
+    function savePreset() {
+      const name = document.getElementById('preset-name').value || "New Preset";
+      const grid = document.getElementById('preset-grid');
+      
+      const newPreset = document.createElement('button');
+      newPreset.className = "bg-surface-container-low border-l-4 border-transparent p-4 rounded-lg flex flex-col items-start gap-1 hover:bg-surface-container-high transition-all active:scale-95 text-left group";
+      newPreset.innerHTML = `
+        <div class="flex items-center gap-2 mb-1 text-outline group-hover:text-primary-container transition-colors">
+          <span class="material-symbols-outlined text-[1rem]">${selectedIcon}</span>
+          <span class="font-headline text-sm font-bold text-on-surface">${name}</span>
+        </div>
+        <span class="text-[10px] text-outline font-body leading-tight">Custom Config</span>
+      `;
+      
+      grid.appendChild(newPreset);
+      document.getElementById('preset-modal').classList.add('hidden');
+      document.getElementById('preset-name').value = '';
+    }
   </script>
-</body></html>
+</body>
+</html>
