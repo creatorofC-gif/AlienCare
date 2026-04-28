@@ -61,7 +61,7 @@ export async function requestBluetoothPermission() {
 // --------------------
 // SCAN FOR DEVICES
 // --------------------
-export async function scanForDevices(onDeviceFound) {
+export async function scanForDevices(onDeviceFound, timeoutMs = 8000) {
   const m = getBleManager();
   if (!m) {
     onDeviceFound([]);
@@ -80,10 +80,10 @@ export async function scanForDevices(onDeviceFound) {
     }
   });
 
-  // Automatically stop scanning after 8 seconds
+  // Automatically stop scanning after configured timeout
   setTimeout(() => {
     m.stopDeviceScan();
-  }, 8000);
+  }, timeoutMs);
 }
 
 // --------------------

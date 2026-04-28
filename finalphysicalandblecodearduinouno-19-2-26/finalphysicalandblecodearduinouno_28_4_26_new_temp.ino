@@ -123,7 +123,8 @@ unsigned long timerPressStart = 0;
 bool bleEnabled = false;
 bool bleConnected = false;
 unsigned long lastUserActivityMs = 0;
-
+unsigned long bleLastActive = 0;
+const unsigned long BLE_TIMEOUT = 5000; // 🔥 5 seconds
 /* ================= BLE OBJECTS ================= */
 BLEServer *bleServer = nullptr;
 BLECharacteristic *tempChar = nullptr;
@@ -261,6 +262,7 @@ void initBLE() {
   lastBleTimerNotify = 0;
   lastBleMode = OFF_MODE;
   lastBleSetpoint = -1;
+  bleLastActive = millis();   // 🔥 start timer
 }
 
 void stopBLE() {
@@ -283,9 +285,6 @@ void stopBLE() {
 /* ================= SLEEP HELPERS ================= */
 void setupWakeSources() {
   gpio_wakeup_enable((gpio_num_t)BTN_MODE, GPIO_INTR_LOW_LEVEL);
-  gpio_wakeup_enable((gpio_num_t)BTN_UP, GPIO_INTR_LOW_LEVEL);
-  gpio_wakeup_enable((gpio_num_t)BTN_DOWN, GPIO_INTR_LOW_LEVEL);
-  gpio_wakeup_enable((gpio_num_t)BTN_TIMER, GPIO_INTR_LOW_LEVEL);
   esp_sleep_enable_gpio_wakeup();
 }
 
@@ -300,9 +299,13 @@ void enterLightSleep() {
   esp_light_sleep_start();
 
   // resumes here after wake
-  initBLE();
   lastUserActivityMs = millis();
   offStartMs = millis();
+  lastModeBtn = LOW;
+  lastUp = LOW;
+  lastDown = LOW;
+  lastTimerBtn = LOW;
+
 }
 
 /* ================= SETUP ================= */
@@ -321,8 +324,7 @@ void setup() {
   display.setBrightness(6);
   display.clear();
 
-  setupWakeSources();
-  initBLE();
+  
 
   offStartMs = millis();
   lastUserActivityMs = millis();
@@ -332,22 +334,18 @@ void setup() {
 void loop() {
   unsigned long now = millis();
 
-  if (!digitalRead(BTN_MODE) || !digitalRead(BTN_UP) ||
-      !digitalRead(BTN_DOWN) || !digitalRead(BTN_TIMER)) {
-    lastUserActivityMs = now;
+if (!digitalRead(BTN_MODE) || !digitalRead(BTN_UP) ||
+    !digitalRead(BTN_DOWN) || !digitalRead(BTN_TIMER)) {
+  lastUserActivityMs = now;
+  bleLastActive = now;   // 🔥 ADD THIS
 
-    if (!bleEnabled) {
-      initBLE();
-    }
+  if (!bleEnabled) {
+    initBLE();
   }
+}
 
   // Auto light sleep only when fully idle and device is OFF
-  if (mode == OFF_MODE &&
-      timerState == TIMER_IDLE &&
-      now - lastUserActivityMs > IDLE_SLEEP_TIMEOUT_MS) {
-    enterLightSleep();
-    return;
-  }
+// 🔥 DISABLED SLEEP (fix wake issue)
 
   bool m = digitalRead(BTN_MODE);
 
@@ -510,6 +508,13 @@ void loop() {
     timerChar->notify();
     lastBleTimerNotify = now;
   }
+  // 🔥 BLE AUTO OFF AFTER 5 SEC
+if (bleEnabled &&
+    mode == OFF_MODE &&
+    timerState == TIMER_IDLE &&
+    millis() - bleLastActive > BLE_TIMEOUT) {
+  stopBLE();
+}
 }
 
 void updateDisplay(unsigned long now) {

@@ -61,15 +61,19 @@ const DashboardScreen = ({ navigation, route }) => {
     const [showPresetModal, setShowPresetModal] = useState(false);
     const [newPresetName, setNewPresetName] = useState('');
     const [newPresetIcon, setNewPresetIcon] = useState('Activity');
+    const [editingPresetId, setEditingPresetId] = useState(null);
+    const [activePresetId, setActivePresetId] = useState(null);
 
     const fadeAnim = React.useRef(new Animated.Value(1)).current;
+    const frostAnim = React.useRef(new Animated.Value(1)).current;
+    const flameAnim = React.useRef(new Animated.Value(1)).current;
     const timerIntervalRef = React.useRef(null);
     const notificationIdRef = React.useRef(null);
     const targetTimeRef = React.useRef(null);
     const lastRemainingSecondsRef = React.useRef(-1);
     const autoConnectAttemptedRef = React.useRef(false);
     const isConnectedRef = React.useRef(isConnected);
-    const scanModalVisibleRef = React.useRef(scanModalVisible);
+    const scanModalVisibleRef = React.useRef(false);
     const isUserAdjustingDialRef = React.useRef(false);
     const ignoreDeviceUpdateUntilRef = React.useRef(0);
     const lastTempUpdateSourceRef = React.useRef('init'); // 'user' | 'device' | 'init'
@@ -110,6 +114,48 @@ const DashboardScreen = ({ navigation, route }) => {
             };
         }, [])
     );
+
+    useEffect(() => {
+        if (mode === 'Cold') {
+            Animated.loop(
+                Animated.sequence([
+                    Animated.timing(frostAnim, {
+                        toValue: 1.2,
+                        duration: 800,
+                        useNativeDriver: true,
+                    }),
+                    Animated.timing(frostAnim, {
+                        toValue: 1,
+                        duration: 800,
+                        useNativeDriver: true,
+                    }),
+                ])
+            ).start();
+        } else {
+            frostAnim.setValue(1);
+            frostAnim.stopAnimation();
+        }
+
+        if (mode === 'Hot') {
+            Animated.loop(
+                Animated.sequence([
+                    Animated.timing(flameAnim, {
+                        toValue: 1.2,
+                        duration: 700,
+                        useNativeDriver: true,
+                    }),
+                    Animated.timing(flameAnim, {
+                        toValue: 1,
+                        duration: 700,
+                        useNativeDriver: true,
+                    }),
+                ])
+            ).start();
+        } else {
+            flameAnim.setValue(1);
+            flameAnim.stopAnimation();
+        }
+    }, [mode, frostAnim, flameAnim]);
 
     useEffect(() => {
         Notifications.requestPermissionsAsync().catch(() => {});
@@ -232,6 +278,22 @@ const DashboardScreen = ({ navigation, route }) => {
                                 AsyncStorage.removeItem('therapy_timer_target').catch(() => {});
                                 AsyncStorage.removeItem(SESSION_STATE_KEY).catch(() => {});
                                 setMode('Off');
+                                
+                                Alert.alert(
+                                    "Time's Up!",
+                                    "Your therapy session has finished.",
+                                    [
+                                        {
+                                            text: 'Stop Alarm',
+                                            onPress: () => {
+                                                if (TherapyTimer && TherapyTimer.stopAlarm) {
+                                                    TherapyTimer.stopAlarm().catch(() => {});
+                                                }
+                                            }
+                                        }
+                                    ],
+                                    { cancelable: false }
+                                );
                             }
                         })
                         .catch(() => {});
@@ -268,10 +330,18 @@ const DashboardScreen = ({ navigation, route }) => {
         const heartbeatInterval = setInterval(() => {
             if (Date.now() - lastHeartbeat > 4000) {
                 console.log("[Dashboard] Heatbeat timeout! Disconnecting visibly.");
-                setIsConnected(false);
                 clearInterval(heartbeatInterval);
-                // Dynamically import to safely kill connection from within interval
                 import('../../BLE_connection/TherapyBle').then(m => m.disconnectDevice());
+                
+                setIsConnected(false);
+                Alert.alert("Disconnected", "The TherapyBand has been disconnected.");
+                setMode('Off');
+                setIsTimerRunning(false);
+                setRemainingSeconds(0);
+                if (TherapyTimer) {
+                    TherapyTimer.stopTimer();
+                    TherapyTimer.turnOffRememberedDevice?.();
+                }
             }
         }, 1500);
 
@@ -321,33 +391,59 @@ const DashboardScreen = ({ navigation, route }) => {
                 }
                 
                 if (newTimerSeconds > 0) {
-                    // Do not let the hardware's imprecise (rounded to minute) backup timer 
-                    // overwrite the app's ultra-precise seconds timer while it's ticking.
                     if (prevIsTimerRunningRef.current) {
                         if (targetTimeRef.current) {
                             const now = Date.now();
                             const rem = Math.round((targetTimeRef.current - now) / 1000);
-                            if (rem > 0) {
+                            
+                            // If hardware timer differs from app by > 3s, user likely adjusted it on the physical band
+                            if (Math.abs(rem - newTimerSeconds) > 3) {
+                                const targetMs = now + newTimerSeconds * 1000;
+                                targetTimeRef.current = targetMs;
+                                lastRemainingSecondsRef.current = newTimerSeconds;
+                                setRemainingSeconds(newTimerSeconds);
+                                setTimer(Math.ceil(newTimerSeconds / 60));
+                                
+                                if (TherapyTimer) {
+                                    TherapyTimer.startTimer(newTimerSeconds).catch(e => console.warn('[Timer] startTimer error:', e));
+                                }
+                                AsyncStorage.setItem('therapy_timer_target', targetMs.toString()).catch(() => {});
+                            } else if (rem > 0) {
                                 setRemainingSeconds(rem);
                             }
                         }
                         return;
                     }
 
+                    // User just started timer from physical band
+                    const targetMs = Date.now() + newTimerSeconds * 1000;
+                    targetTimeRef.current = targetMs;
+                    lastRemainingSecondsRef.current = newTimerSeconds;
                     setRemainingSeconds(newTimerSeconds);
                     setIsTimerRunning(true);
                     setTimer(Math.ceil(newTimerSeconds / 60));
                     prevIsTimerRunningRef.current = true;
+                    
+                    if (TherapyTimer) {
+                        TherapyTimer.startTimer(newTimerSeconds).catch(e => console.warn('[Timer] startTimer error:', e));
+                    }
+                    AsyncStorage.setItem('therapy_timer_target', targetMs.toString()).catch(() => {});
                 } else {
                     if (isUserAdjustingDialRef.current) return;
-                    if (isTimerRunning) {
+                    if (prevIsTimerRunningRef.current) {
                         setIsTimerRunning(false);
                         setRemainingSeconds(0);
                         prevIsTimerRunningRef.current = false;
+                        targetTimeRef.current = null;
                         if (timerIntervalRef.current) {
                             clearInterval(timerIntervalRef.current);
                             timerIntervalRef.current = null;
                         }
+                        if (TherapyTimer) {
+                            TherapyTimer.stopTimer();
+                        }
+                        AsyncStorage.removeItem('therapy_timer_target').catch(() => {});
+                        AsyncStorage.removeItem(SESSION_STATE_KEY).catch(() => {});
                     }
                 }
             }
@@ -357,6 +453,13 @@ const DashboardScreen = ({ navigation, route }) => {
             setIsConnected(false);
             if (heartbeatInterval) clearInterval(heartbeatInterval);
             Alert.alert("Disconnected", "The TherapyBand has been disconnected.");
+            setMode('Off');
+            setIsTimerRunning(false);
+            setRemainingSeconds(0);
+            if (TherapyTimer) {
+                TherapyTimer.stopTimer();
+                TherapyTimer.turnOffRememberedDevice?.();
+            }
         });
 
         return () => {
@@ -580,7 +683,9 @@ const DashboardScreen = ({ navigation, route }) => {
             Alert.alert("Limit Reached", "You can only save up to 6 custom presets.");
             return;
         }
+        setEditingPresetId(null);
         setNewPresetName(`Mode ${presets.length + 1}`);
+        setNewPresetIcon('Activity');
         setShowPresetModal(true);
     };
 
@@ -589,33 +694,52 @@ const DashboardScreen = ({ navigation, route }) => {
             Alert.alert("Invalid Name", "Please enter a valid preset name.");
             return;
         }
-        const newPreset = {
-            id: Date.now().toString(),
-            name: newPresetName.trim(),
-            icon: newPresetIcon,
-            mode,
-            temp,
-            timer,
-        };
-        const updatedPresets = [...presets, newPreset];
+        
+        let updatedPresets;
+        if (editingPresetId) {
+            updatedPresets = presets.map(p => 
+                p.id === editingPresetId ? { ...p, name: newPresetName.trim(), icon: newPresetIcon, mode, temp, timer } : p
+            );
+        } else {
+            const newPreset = {
+                id: Date.now().toString(),
+                name: newPresetName.trim(),
+                icon: newPresetIcon,
+                mode,
+                temp,
+                timer,
+            };
+            updatedPresets = [...presets, newPreset];
+        }
+        
         setPresets(updatedPresets);
         savePresetsToStorage(updatedPresets);
         
         setShowPresetModal(false);
         setNewPresetName('');
+        setEditingPresetId(null);
     };
 
-    const handleDeletePreset = (id) => {
+    const handlePresetOptions = (preset) => {
         Alert.alert(
-            "Delete Preset?",
-            "Are you sure you want to delete this preset?",
+            "Preset Options",
+            `What would you like to do with ${preset.name}?`,
             [
                 { text: "Cancel", style: "cancel" },
+                {
+                    text: "Edit",
+                    onPress: () => {
+                        setEditingPresetId(preset.id);
+                        setNewPresetName(preset.name);
+                        setNewPresetIcon(preset.icon || 'Activity');
+                        setShowPresetModal(true);
+                    }
+                },
                 {
                     text: "Delete",
                     style: "destructive",
                     onPress: () => {
-                        const updatedPresets = presets.filter(p => p.id !== id);
+                        const updatedPresets = presets.filter(p => p.id !== preset.id);
                         setPresets(updatedPresets);
                         savePresetsToStorage(updatedPresets);
                     }
@@ -629,6 +753,7 @@ const DashboardScreen = ({ navigation, route }) => {
             Alert.alert("Offline", "Please connect to the TherapyBand to use presets.");
             return;
         }
+        setActivePresetId(preset.id);
         ignoreDeviceUpdateUntilRef.current = Date.now() + cooldownDuration;
         lastModeUpdateSourceRef.current = 'user';
         lastTempUpdateSourceRef.current = 'user';
@@ -660,53 +785,6 @@ const DashboardScreen = ({ navigation, route }) => {
             setIsTimerRunning(false);
             AsyncStorage.removeItem(SESSION_STATE_KEY).catch(() => {});
         }
-    };
-
-    const ModeButton = ({ title, icon: Icon, active, color }) => {
-        const scaleAnim = React.useRef(new Animated.Value(1)).current;
-
-        const handlePress = () => {
-            Animated.sequence([
-                Animated.spring(scaleAnim, {
-                    toValue: 0.95,
-                    useNativeDriver: true,
-                }),
-                Animated.spring(scaleAnim, {
-                    toValue: 1,
-                    useNativeDriver: true,
-                }),
-            ]).start();
-            ignoreDeviceUpdateUntilRef.current = Date.now() + cooldownDuration;
-            lastModeUpdateSourceRef.current = 'user';
-            setMode(title);
-            
-            // INSTANT MODE SWITCH: Activation fix for Cold/Hot buttons
-            if (title === 'Off') {
-                sendCommandToDevice('Off', 0, 0);
-            } else {
-                const targetTemp = (title === 'Hot') ? lastHotTempRef.current : (title === 'Cold' ? lastColdTempRef.current : temp);
-                sendCommandToDevice(title, targetTemp, -1);
-                setTemp(targetTemp);
-            }
-        };
-
-        return (
-            <Animated.View style={[styles.modeButtonWrapper, { transform: [{ scale: scaleAnim }] }]}>
-                <Pressable
-                    style={[
-                        styles.modeButton,
-                        { backgroundColor: active ? color : 'rgba(255,255,255,0.08)' }
-                    ]}
-                    android_ripple={{ color: 'rgba(255,255,255,0.2)' }}
-                    onPress={handlePress}
-                >
-                    <Icon color={active ? '#fff' : 'rgba(255,255,255,0.6)'} size={20} />
-                    <Text style={[styles.modeButtonText, { color: active ? '#fff' : 'rgba(255,255,255,0.6)' }]}>
-                        {title}
-                    </Text>
-                </Pressable>
-            </Animated.View>
-        );
     };
 
     const TimerDisplay = ({ selectedMinutes, remainingSeconds, isRunning, onPress, onStop }) => {
@@ -755,7 +833,8 @@ const DashboardScreen = ({ navigation, route }) => {
 
     const currentRange = TEMP_RANGES[mode] || TEMP_RANGES.Cold;
 
-    const handleBluetoothScan = async (retryCount = 0) => {
+    const handleBluetoothScan = async () => {
+        setScanModalVisible(true);
         autoConnectAttemptedRef.current = false;
         setIsScanning(true);
         try {
@@ -773,6 +852,11 @@ const DashboardScreen = ({ navigation, route }) => {
                                 setIsConnected(true);
                                 setIsScanning(false);
                                 setScanModalVisible(false);
+                                lastModeUpdateSourceRef.current = 'user';
+                                lastTempUpdateSourceRef.current = 'user';
+                                ignoreDeviceUpdateUntilRef.current = Date.now() + cooldownDuration;
+                                setMode('Hot');
+                                setTemp(lastHotTempRef.current);
                             } else {
                                 autoConnectAttemptedRef.current = false;
                                 setIsScanning(false);
@@ -784,20 +868,16 @@ const DashboardScreen = ({ navigation, route }) => {
                         // Keep scanning or timeout handled by scanForDevices
                     }
                 }
-            });
+            }, 60000);
 
-            // If not found after 8 seconds (matching TherapyBle timeout)
+            // If not found after 60 seconds
             setTimeout(() => {
                 setIsScanning(false);
                 if (!isConnectedRef.current && scanModalVisibleRef.current) {
-                    if (retryCount === 0) {
-                        handleBluetoothScan(1);
-                        return;
-                    }
                     setScanModalVisible(false);
-                    Alert.alert("Device Not Found", "Please make sure the band is powered on and nearby.");
+                    Alert.alert("Device Not Found", "Please ensure band is turned on.");
                 }
-            }, 8500);
+            }, 60500);
 
         } catch (err) {
             console.error("Scan error:", err);
@@ -856,63 +936,71 @@ const DashboardScreen = ({ navigation, route }) => {
     return (
         <GradientBackground mode={mode}>
             <SafeAreaView style={styles.container}>
-                {/* Header block mirroring HTML */}
+                {/* Header */}
                 <View style={styles.header}>
                     <TouchableOpacity 
                         style={styles.powerButton}
                         onPress={() => {
                             if (!isConnected) return;
+                            lastModeUpdateSourceRef.current = 'user';
+                            ignoreDeviceUpdateUntilRef.current = Date.now() + cooldownDuration;
                             setMode('Off');
                         }}
                     >
-                        <Power color={mode === 'Off' ? COLORS.off : COLORS.hot} size={24} />
+                        <Power color={mode === 'Off' ? COLORS.off : (mode === 'Cold' ? COLORS.cold : COLORS.hot)} size={24} />
                     </TouchableOpacity>
                     
                     <View style={styles.headerCenter}>
                         <Text style={styles.greetingHeader}>HELLO, {username.toUpperCase()}</Text>
-                        <Text style={[styles.connStatus, { color: isConnected ? COLORS.success : COLORS.danger }]}>
-                            ● {isConnected ? 'CONNECTED' : 'OFFLINE'}
-                        </Text>
+                        <TouchableOpacity onPress={() => !isConnected && handleBluetoothScan()}>
+                            <Text style={[styles.connStatus, { color: isConnected ? COLORS.success : COLORS.danger }]}>
+                                ● {isConnected ? 'CONNECTED' : 'OFFLINE'}
+                            </Text>
+                        </TouchableOpacity>
                     </View>
                     
                     <TouchableOpacity style={styles.settingsButton} onPress={() => navigation.navigate('Profile', { username, deviceName })}>
-                        <Settings color={COLORS.hot} size={24} />
+                        <Settings color={mode === 'Cold' ? COLORS.cold : COLORS.hot} size={24} />
                     </TouchableOpacity>
                 </View>
 
-                {/* Mode Toggle */}
-                <View style={styles.modeContainer}>
-                    <View style={styles.modePill}>
-                        <TouchableOpacity 
-                            style={[
-                                styles.modeTab, 
-                                mode === 'Hot' && styles.hotTabActive,
-                                !isConnected && { opacity: 0.5 }
-                            ]} 
-                            onPress={() => {
-                                if (!isConnected) { Alert.alert("Offline", "Connect first."); return; }
-                                setMode('Hot');
-                            }}
-                        >
-                            <Text style={[styles.modeTabText, mode === 'Hot' ? {color: '#331100'} : {color: COLORS.outline}]}>HOT</Text>
-                        </TouchableOpacity>
-                        <TouchableOpacity 
-                            style={[
-                                styles.modeTab, 
-                                mode === 'Cold' && styles.coldTabActive,
-                                !isConnected && { opacity: 0.5 }
-                            ]} 
-                            onPress={() => {
-                                if (!isConnected) { Alert.alert("Offline", "Connect first."); return; }
-                                setMode('Cold');
-                            }}
-                        >
-                            <Text style={[styles.modeTabText, mode === 'Cold' ? {color: '#002220'} : {color: COLORS.outline}]}>COLD</Text>
+                {/* Custom Preset Section — right after header */}
+                <View style={styles.presetSection}>
+                    <View style={styles.presetSectionHeader}>
+                        <Text style={styles.presetSectionTitle}>CUSTOM PRESETS</Text>
+                        <TouchableOpacity onPress={handleSavePresetStart}>
+                            <Text style={styles.addPresetBtn}>+ ADD NEW</Text>
                         </TouchableOpacity>
                     </View>
+                    
+                    <ScrollView style={styles.presetGridScroll} contentContainerStyle={styles.presetGrid} showsVerticalScrollIndicator={false} horizontal={false}>
+                        {presets.map((preset) => {
+                            const isActive = activePresetId === preset.id;
+                            const glowColor = preset.mode === 'Hot' ? COLORS.hot : COLORS.cold;
+                            return (
+                                <TouchableOpacity
+                                    key={preset.id}
+                                    style={[
+                                        styles.presetGridItem,
+                                        preset.mode === 'Hot' ? styles.presetGridItemHot : styles.presetGridItemCold,
+                                        isActive && {
+                                            borderColor: glowColor,
+                                            borderWidth: 1.5,
+                                        },
+                                        !isConnected && { opacity: 0.5 }
+                                    ]}
+                                    onPress={() => applyPreset(preset)}
+                                    onLongPress={() => handlePresetOptions(preset)}
+                                >
+                                    {getPresetIcon(preset.icon || 'Activity', isActive ? glowColor : (preset.mode === 'Hot' ? COLORS.hot : COLORS.cold))}
+                                    <Text style={[styles.presetGridItemText, isActive && { color: glowColor }]} numberOfLines={1}>{preset.name}</Text>
+                                </TouchableOpacity>
+                            );
+                        })}
+                    </ScrollView>
                 </View>
 
-                {/* Dial Section */}
+                {/* Dial Section — centered, pushed down */}
                 <Animated.View style={[styles.dialWrapper, { opacity: fadeAnim }]}>
                     {isLoading ? (
                         <View style={styles.loadingContainer}>
@@ -940,57 +1028,76 @@ const DashboardScreen = ({ navigation, route }) => {
                     )}
                 </Animated.View>
 
-                {/* Current Program Info */}
-                <View style={styles.programCardWrapper}>
-                    <View style={styles.programCard}>
-                        <Text style={styles.programLabel}>CURRENT PROGRAM</Text>
-                        <Text style={styles.programTitle}>Manual Mode</Text>
-                        <Text style={styles.programDesc}>Adaptive {(mode || 'Off').toLowerCase()} therapy active</Text>
-                    </View>
-                </View>
-
-                {/* Custom Preset Section (Grid) */}
-                <View style={styles.presetSection}>
-                    <View style={styles.presetSectionHeader}>
-                        <Text style={styles.presetSectionTitle}>CUSTOM PRESETS</Text>
-                        <TouchableOpacity onPress={handleSavePresetStart}>
-                            <Text style={styles.addPresetBtn}>+ ADD NEW</Text>
-                        </TouchableOpacity>
-                    </View>
-                    
-                    <ScrollView style={styles.presetGridScroll} contentContainerStyle={styles.presetGrid} showsVerticalScrollIndicator={false}>
-                        {presets.map((preset) => (
-                            <TouchableOpacity
-                                key={preset.id}
-                                style={[
-                                    styles.presetGridItem,
-                                    preset.mode === 'Hot' ? styles.presetGridItemHot : styles.presetGridItemCold,
-                                    !isConnected && { opacity: 0.5 }
-                                ]}
-                                onPress={() => applyPreset(preset)}
-                                onLongPress={() => handleDeletePreset(preset.id)}
-                            >
-                                {getPresetIcon(preset.icon || 'Activity', preset.mode === 'Hot' ? COLORS.hot : COLORS.cold)}
-                                <Text style={styles.presetGridItemText} numberOfLines={1}>{preset.name}</Text>
-                            </TouchableOpacity>
-                        ))}
-                    </ScrollView>
-                </View>
-
-                {/* Fixed Bottom Bar Replacement */}
+                {/* Bottom Navigation — Hot / Cold */}
                 <View style={styles.bottomBar}>
-                    <View style={styles.bottomBarItem}>
-                        <View style={[styles.bottomBarIconWrapper, mode === 'Hot' && styles.bottomBarIconActiveHot]}>
-                            <Thermometer color={mode === 'Hot' ? '#0C0500' : COLORS.outline} size={30} />
+                    <TouchableOpacity 
+                        style={[styles.bottomBarItem, !isConnected && { opacity: 0.5 }]}
+                        onPress={() => {
+                            if (!isConnected) { Alert.alert("Offline", "Connect first."); return; }
+                            lastModeUpdateSourceRef.current = 'user';
+                            lastTempUpdateSourceRef.current = 'user';
+                            ignoreDeviceUpdateUntilRef.current = Date.now() + cooldownDuration;
+                            setMode('Hot');
+                            setTemp(lastHotTempRef.current);
+                        }}
+                    >
+                        <View style={[
+                            styles.bottomBarGlowRing,
+                            {
+                                borderColor: mode === 'Hot' ? 'rgba(255, 140, 50, 0.7)' : (mode === 'Off' ? 'rgba(255, 160, 80, 0.35)' : 'rgba(200, 100, 30, 0.25)'),
+                                backgroundColor: mode === 'Hot' ? 'rgba(255, 120, 40, 0.12)' : (mode === 'Off' ? 'rgba(255, 140, 60, 0.06)' : 'transparent'),
+                                shadowColor: mode === 'Hot' ? '#FF8C32' : (mode === 'Off' ? '#FF8C32' : 'transparent'),
+                                shadowOffset: { width: 0, height: 0 },
+                                shadowOpacity: mode === 'Hot' ? 0.5 : (mode === 'Off' ? 0.2 : 0),
+                                shadowRadius: mode === 'Hot' ? 12 : (mode === 'Off' ? 8 : 0),
+                                elevation: mode === 'Hot' ? 8 : (mode === 'Off' ? 3 : 0),
+                            },
+                        ]}>
+                            <View style={[
+                                styles.bottomBarIconWrapper, 
+                                mode === 'Hot' && styles.bottomBarIconActiveHot,
+                            ]}>
+                                <Animated.View style={{ transform: [{ scale: mode === 'Hot' ? flameAnim : 1 }] }}>
+                                    <Flame color={mode === 'Hot' ? '#FFF0E0' : '#C88A5A'} size={28} />
+                                </Animated.View>
+                            </View>
                         </View>
                         <Text style={[styles.bottomBarLabel, mode === 'Hot' ? {color: COLORS.hot} : {color: COLORS.outline}]}>HOT</Text>
-                    </View>
-                    <View style={styles.bottomBarItem}>
-                        <View style={[styles.bottomBarIconWrapper, mode === 'Cold' && styles.bottomBarIconActiveCold]}>
-                            <Snowflake color={mode === 'Cold' ? '#0C0500' : COLORS.outline} size={30} />
+                    </TouchableOpacity>
+                    <TouchableOpacity 
+                        style={[styles.bottomBarItem, !isConnected && { opacity: 0.5 }]}
+                        onPress={() => {
+                            if (!isConnected) { Alert.alert("Offline", "Connect first."); return; }
+                            lastModeUpdateSourceRef.current = 'user';
+                            lastTempUpdateSourceRef.current = 'user';
+                            ignoreDeviceUpdateUntilRef.current = Date.now() + cooldownDuration;
+                            setMode('Cold');
+                            setTemp(lastColdTempRef.current);
+                        }}
+                    >
+                        <View style={[
+                            styles.bottomBarGlowRing,
+                            {
+                                borderColor: mode === 'Cold' ? 'rgba(0, 200, 165, 0.7)' : (mode === 'Off' ? 'rgba(0, 200, 165, 0.35)' : 'rgba(0, 170, 140, 0.25)'),
+                                backgroundColor: mode === 'Cold' ? 'rgba(0, 190, 155, 0.12)' : (mode === 'Off' ? 'rgba(0, 190, 155, 0.06)' : 'transparent'),
+                                shadowColor: mode === 'Cold' ? '#00C8A5' : (mode === 'Off' ? '#00C8A5' : 'transparent'),
+                                shadowOffset: { width: 0, height: 0 },
+                                shadowOpacity: mode === 'Cold' ? 0.5 : (mode === 'Off' ? 0.2 : 0),
+                                shadowRadius: mode === 'Cold' ? 12 : (mode === 'Off' ? 8 : 0),
+                                elevation: mode === 'Cold' ? 8 : (mode === 'Off' ? 3 : 0),
+                            },
+                        ]}>
+                            <View style={[
+                                styles.bottomBarIconWrapper, 
+                                mode === 'Cold' && styles.bottomBarIconActiveCold,
+                            ]}>
+                                <Animated.View style={{ transform: [{ scale: mode === 'Cold' ? frostAnim : 1 }] }}>
+                                    <Snowflake color={mode === 'Cold' ? '#0C0500' : COLORS.outline} size={28} />
+                                </Animated.View>
+                            </View>
                         </View>
                         <Text style={[styles.bottomBarLabel, mode === 'Cold' ? {color: COLORS.cold} : {color: COLORS.outline}]}>COLD</Text>
-                    </View>
+                    </TouchableOpacity>
                 </View>
 
             </SafeAreaView>
@@ -1012,7 +1119,7 @@ const DashboardScreen = ({ navigation, route }) => {
             <Modal visible={scanModalVisible} transparent animationType="fade" onRequestClose={() => setScanModalVisible(false)}>
                 <View style={styles.modalOverlay}>
                     <View style={[styles.modalContent, { alignItems: 'center', paddingVertical: 40 }]}>
-                        <ActivityIndicator size="large" color={COLORS.hot} />
+                        <ActivityIndicator size="large" color={mode === 'Cold' ? COLORS.cold : COLORS.hot} />
                         <Text style={[styles.modalTitle, { marginTop: 20 }]}>Scanning...</Text>
                         <Text style={styles.modalSubtitle}>Press any button on your band to wake it up!</Text>
                         <TouchableOpacity style={[styles.saveBtn, { marginTop: 20, backgroundColor: 'rgba(255,255,255,0.1)' }]} onPress={() => setScanModalVisible(false)}>
@@ -1051,17 +1158,17 @@ const DashboardScreen = ({ navigation, route }) => {
                                         key={icon}
                                         style={[
                                             styles.iconBtn,
-                                            newPresetIcon === icon && styles.iconBtnActive
+                                            newPresetIcon === icon && { borderColor: mode === 'Cold' ? COLORS.cold : COLORS.hot }
                                         ]}
                                         onPress={() => setNewPresetIcon(icon)}
                                     >
-                                        {getPresetIcon(icon, newPresetIcon === icon ? COLORS.hot : COLORS.outline)}
+                                        {getPresetIcon(icon, newPresetIcon === icon ? (mode === 'Cold' ? COLORS.cold : COLORS.hot) : COLORS.outline)}
                                     </TouchableOpacity>
                                 ))}
                             </View>
 
                             <TouchableOpacity
-                                style={[styles.saveBtn, !newPresetName.trim() && { opacity: 0.5 }]}
+                                style={[styles.saveBtn, { backgroundColor: mode === 'Cold' ? COLORS.cold : COLORS.hot }, !newPresetName.trim() && { opacity: 0.5 }]}
                                 onPress={handleSavePresetConfirm}
                                 disabled={!newPresetName.trim()}
                             >
@@ -1144,9 +1251,11 @@ const styles = StyleSheet.create({
     },
     dialWrapper: {
         alignItems: 'center',
-        justifyContent: 'center',
-        marginVertical: 10,
-        minHeight: 300,
+        justifyContent: 'flex-end',
+        flex: 1,
+        alignSelf: 'center',
+        width: '100%',
+        paddingBottom: 20,
     },
     loadingContainer: {
         paddingVertical: 40,
@@ -1180,14 +1289,15 @@ const styles = StyleSheet.create({
         marginTop: 4,
     },
     presetSection: {
-        flex: 1,
-        marginTop: 20,
+        marginTop: 8,
+        marginBottom: 8,
+        maxHeight: 220,
     },
     presetSectionHeader: {
         flexDirection: 'row',
         justifyContent: 'space-between',
         alignItems: 'center',
-        marginBottom: 10,
+        marginBottom: 8,
     },
     presetSectionTitle: {
         fontSize: 10,
@@ -1201,34 +1311,40 @@ const styles = StyleSheet.create({
         letterSpacing: 1,
     },
     presetGridScroll: {
-        flex: 1,
+        flexGrow: 0,
     },
     presetGrid: {
         flexDirection: 'row',
         flexWrap: 'wrap',
         justifyContent: 'space-between',
-        paddingBottom: 20,
+        paddingBottom: 4,
     },
     presetGridItem: {
         width: '48%',
         backgroundColor: COLORS.cardBackgroundHigh,
         borderRadius: 16,
-        padding: 16,
-        marginBottom: 12,
+        padding: 14,
+        marginBottom: 10,
         flexDirection: 'row',
         alignItems: 'center',
         borderWidth: 1,
         borderColor: 'transparent',
     },
     presetGridItemHot: {
-        borderTopColor: 'rgba(255, 122, 32, 0.4)',
-        borderLeftColor: 'rgba(255, 122, 32, 0.1)',
-        borderRightColor: 'rgba(255, 122, 32, 0.1)',
+        borderColor: 'rgba(255, 122, 32, 0.3)',
+        shadowColor: '#FF7A20',
+        shadowOffset: { width: 0, height: 0 },
+        shadowOpacity: 0.3,
+        shadowRadius: 6,
+        elevation: 4,
     },
     presetGridItemCold: {
-        borderTopColor: 'rgba(0, 229, 188, 0.4)',
-        borderLeftColor: 'rgba(0, 229, 188, 0.1)',
-        borderRightColor: 'rgba(0, 229, 188, 0.1)',
+        borderColor: 'rgba(0, 229, 188, 0.3)',
+        shadowColor: '#00E5BC',
+        shadowOffset: { width: 0, height: 0 },
+        shadowOpacity: 0.3,
+        shadowRadius: 6,
+        elevation: 4,
     },
     presetGridItemText: {
         color: COLORS.text,
@@ -1242,37 +1358,56 @@ const styles = StyleSheet.create({
         backgroundColor: COLORS.backgroundEnd,
         borderTopWidth: 1,
         borderTopColor: COLORS.surfaceContainer,
-        borderRadius: 24,
-        paddingVertical: 10,
-        paddingHorizontal: 10,
-        marginBottom: 20,
-        justifyContent: 'space-between',
+        borderRadius: 28,
+        paddingVertical: 12,
+        paddingHorizontal: 16,
+        marginBottom: 16,
+        marginTop: 10,
+        justifyContent: 'space-around',
     },
     bottomBarItem: {
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'center',
-        flex: 1,
-        paddingVertical: 8,
+        paddingVertical: 6,
+        paddingHorizontal: 12,
     },
     bottomBarLabel: {
         fontSize: 14,
         fontWeight: 'bold',
         marginLeft: 10,
     },
+    bottomBarGlowRing: {
+        width: 58,
+        height: 58,
+        borderRadius: 29,
+        borderWidth: 1.5,
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
     bottomBarIconWrapper: {
-        width: 48,
-        height: 48,
-        borderRadius: 24,
+        width: 46,
+        height: 46,
+        borderRadius: 23,
         alignItems: 'center',
         justifyContent: 'center',
         backgroundColor: COLORS.cardBackgroundHigh,
     },
     bottomBarIconActiveHot: {
-        backgroundColor: COLORS.hot,
+        backgroundColor: '#E06A10',
+        shadowColor: '#FF8C32',
+        shadowOffset: { width: 0, height: 0 },
+        shadowOpacity: 0.6,
+        shadowRadius: 10,
+        elevation: 8,
     },
     bottomBarIconActiveCold: {
-        backgroundColor: COLORS.cold,
+        backgroundColor: '#009E80',
+        shadowColor: '#00C8A5',
+        shadowOffset: { width: 0, height: 0 },
+        shadowOpacity: 0.6,
+        shadowRadius: 10,
+        elevation: 8,
     },
     modalOverlay: {
         flex: 1,

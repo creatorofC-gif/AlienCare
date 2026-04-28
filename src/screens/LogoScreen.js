@@ -45,7 +45,7 @@ const LogoScreen = ({ navigation, route }) => {
                             username, 
                             deviceName: 'Smart Band', 
                             isConnected: false,
-                            autoConnect: true 
+                            autoConnect: false 
                         });
                     } else {
                         await AsyncStorage.setItem('hasSeenBluetoothOnLaunch', 'true');
